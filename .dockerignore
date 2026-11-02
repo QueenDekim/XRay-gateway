@@ -1,0 +1,17 @@
+tools
+.secrets
+config
+routeros
+tests
+**/__pycache__
+*.pyc
+ips.txt
+README.md
+.git
+.github
+.backups
+docs
+secrets
+.env
+build
+dist

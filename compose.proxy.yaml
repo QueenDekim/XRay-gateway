@@ -1,0 +1,11 @@
+services:
+  gateway:
+    networks:
+      management:
+        interface_name: eth1
+        gw_priority: -1
+        aliases: [xray-gateway-panel]
+networks:
+  management:
+    external: true
+    name: ${PROXY_NETWORK:?Set PROXY_NETWORK to an existing proxy network}

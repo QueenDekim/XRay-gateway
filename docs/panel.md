@@ -1,0 +1,50 @@
+# Web panel and API
+
+## Profiles and measured traffic
+
+Add VLESS TCP+REALITY or XHTTP+REALITY profiles. Lower priority numbers win among
+enabled healthy profiles. Adding, editing or deleting a profile validates a new
+Xray configuration and restarts the core. Existing connections can close.
+
+The panel reads Xray outbound counters and keeps cumulative totals in SQLite.
+Counters include probe traffic. The chart stores 90 samples in process memory;
+a supervisor restart clears that chart history. Deleting a profile preserves its
+contribution to cumulative totals.
+
+## IP lists and settings
+
+IP lists accept mixed IPv4/IPv6 addresses and CIDRs, normalize networks and remove
+duplicates. Import text files or paste a NetLens `ips.txt` export. Copy operations
+include the full list.
+
+Settings has Appearance, Routing, Checks, Users and Security tabs. Administrators
+manage common settings and accounts. Operators manage profiles and IP lists,
+generate scripts, choose appearance and change their password. Passwords require
+8 to 1024 characters. The panel protects the last administrator and prevents
+self-deletion.
+
+Appearance offers Titan, Paper, Console and Contour. Each has a light/dark pair
+and its own component layout and traffic chart. The browser stores the style and
+color mode as independent preferences. The header sun/moon button changes color
+mode without changing the style.
+
+## HTTP API
+
+The API uses JSON and a same-origin session cookie. Log in with
+`POST /api/login` containing `username` and `password`. Read `GET /api/state` for
+the CSRF token, then send that value in `X-CSRF-Token` on authenticated writes.
+
+| Endpoint | Operation |
+| --- | --- |
+| `GET /api/state` | Profiles, lists, statistics, settings and current account |
+| `POST /api/logout` | End the session |
+| `POST /api/profiles/add`, `/edit`, `/delete` | Change a profile using its revision |
+| `POST /api/ip-lists/add`, `/edit`, `/delete` | Change a list using its version |
+| `POST /api/routeros` | Generate a script from a list or explicit destinations |
+| `POST /api/settings` | Save administrator settings using their revision |
+| `POST /api/password` | Change the current user's password |
+| `POST /api/users/add`, `/edit`, `/delete` | Manage accounts as an administrator |
+
+API responses omit VLESS credentials and password hashes. Keep session cookies,
+CSRF tokens and exported configuration files private. Account changes revoke
+earlier sessions through a user revision check.

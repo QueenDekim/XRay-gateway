@@ -1,0 +1,72 @@
+services:
+  gateway:
+    image: ${GATEWAY_IMAGE:-xray-gateway:local}
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+      args:
+        XRAY_IMAGE: ${XRAY_IMAGE:-ghcr.io/xtls/xray-core:26.10.21}
+    restart: unless-stopped
+    cap_add: [NET_ADMIN, NET_RAW]
+    security_opt: [no-new-privileges:true]
+    sysctls:
+      net.ipv4.conf.all.src_valid_mark: "0"
+      net.ipv4.conf.default.src_valid_mark: "0"
+      net.ipv4.conf.all.rp_filter: "0"
+      net.ipv4.conf.default.rp_filter: "0"
+    environment:
+      XRAY_LAN_CIDR: ${LAN_SUBNET:?Set LAN_SUBNET in .env}
+      GATEWAY_IP: ${GATEWAY_IP:?Set GATEWAY_IP in .env}
+      DOCKER_HOST_IP: ${DOCKER_HOST_IP:?Set DOCKER_HOST_IP in .env}
+      DEFAULT_CLIENT_CIDR: ${DEFAULT_CLIENT_CIDR:-${LAN_SUBNET}}
+      LOCAL_NETWORKS: ${LOCAL_NETWORKS:-${LAN_SUBNET}}
+      ROUTER_LAN_INTERFACE: ${ROUTER_LAN_INTERFACE:-bridge}
+      XRAY_INGRESS_INTERFACE: eth0
+      PANEL_PORT: ${PANEL_PORT:-8080}
+      HEALTH_PORT: ${HEALTH_PORT:-18080}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+      PROBE_URL: ${PROBE_URL:-https://www.gstatic.com/generate_204}
+      CHECK_INTERVAL: ${CHECK_INTERVAL:-10}
+      FAIL_THRESHOLD: ${FAIL_THRESHOLD:-3}
+      RECOVER_THRESHOLD: ${RECOVER_THRESHOLD:-2}
+    secrets: [admin_password]
+    volumes:
+      - ./config/runtime:/data
+    networks:
+      data_plane:
+        ipv4_address: ${GATEWAY_IP}
+        interface_name: eth0
+        gw_priority: 100
+    healthcheck:
+      test: [CMD, python3, -c, "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('HEALTH_PORT','18080')+'/health',timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  xray:
+    image: ${XRAY_IMAGE:-ghcr.io/xtls/xray-core:26.10.21}
+    restart: unless-stopped
+    user: "0:0"
+    cap_add: [NET_ADMIN]
+    security_opt: [no-new-privileges:true]
+    network_mode: service:gateway
+    pid: service:gateway
+    depends_on:
+      gateway:
+        condition: service_started
+    volumes:
+      - ./config/runtime:/usr/local/etc/xray:ro
+    command: [run, -c, /usr/local/etc/xray/config.json]
+networks:
+  data_plane:
+    driver: ${LAN_DRIVER:-macvlan}
+    driver_opts:
+      parent: ${LAN_PARENT:?Set LAN_PARENT in .env}
+    ipam:
+      config:
+        - subnet: ${LAN_SUBNET}
+          gateway: ${LAN_GATEWAY:?Set LAN_GATEWAY in .env}
+secrets:
+  admin_password:
+    file: ./secrets/admin_password

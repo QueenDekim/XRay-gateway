@@ -1,0 +1,16 @@
+# Security policy
+
+Report vulnerabilities through
+[GitHub private vulnerability reporting](https://github.com/QueenDekim/XRay-gateway/security/advisories/new).
+If that feature is unavailable, open an issue asking for a private contact
+without including exploit details or credentials.
+
+Include the affected revision, deployment mode, impact and a reproduction using
+dummy data. Remove session cookies, passwords, subscription URLs, VLESS keys and
+private captures before sharing logs.
+
+The current release branch receives fixes. Run the panel and health endpoint on
+a trusted management network, use HTTPS at the proxy and back up private runtime
+data. The supervisor needs network administration capabilities inside its
+container namespace. Review changes to Compose capabilities and network drivers
+before applying them to a production host.

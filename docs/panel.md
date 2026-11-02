@@ -28,11 +28,23 @@ and its own component layout and traffic chart. The browser stores the style and
 color mode as independent preferences. The header sun/moon button changes color
 mode without changing the style.
 
+Choose Русский or English on the sign-in page or under Settings → Appearance.
+The browser saves your language choice. Switching languages keeps unsaved form
+values and updates labels, messages, chart captions and date formats.
+
+The lower-left version link opens the matching GitHub tag. Versions use
+`1.0-<short commit SHA>`; each repository uses its own seven-character SHA.
+The container build records the source revision, so the panel can show it
+without Git at runtime.
+
 ## HTTP API
 
 The API uses JSON and a same-origin session cookie. Log in with
 `POST /api/login` containing `username` and `password`. Read `GET /api/state` for
 the CSRF token, then send that value in `X-CSRF-Token` on authenticated writes.
+
+Read `GET /api/version` without signing in for the version, source revision and
+tag URL. Send `Accept-Language: en` for English API errors; the default is Russian.
 
 | Endpoint | Operation |
 | --- | --- |

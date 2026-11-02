@@ -46,15 +46,19 @@ def main():
                     if time.monotonic()>until:
                         raise RuntimeError('Gateway health did not become ready: '+docker('logs',gateway).stdout+docker('logs',gateway).stderr+docker('logs',core).stdout+docker('logs',core).stderr)
                     time.sleep(.5)
-                login="""import http.cookiejar,json,urllib.request
+                login=r"""import http.cookiejar,json,re,urllib.request
 jar=http.cookiejar.CookieJar()
 client=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+info=json.load(client.open('http://127.0.0.1:8080/api/version'))
+assert re.fullmatch(r'1\.0-[0-9a-f]{7}',info['version']) and info['revision']
+assert info['url'].endswith('/'+info['version'])
+assert b'window.XrayMessages = ' in client.open('http://127.0.0.1:8080/locales.js').read()
 request=urllib.request.Request('http://127.0.0.1:8080/api/login',data=json.dumps({'username':'smoke-owner','password':'smoke-test-password'}).encode(),headers={'Content-Type':'application/json'})
 client.open(request).read()
 state=json.load(client.open('http://127.0.0.1:8080/api/state'))
 assert state['username']=='smoke-owner' and state['profiles']==[] and state['ip_lists']==[] and state['ready']
 assert state['settings']['source']=='192.168.50.0/24'
-print('Fresh-volume state and authentication PASS')
+print('Fresh-volume state, authentication, localization and version PASS')
 """
                 result=docker('exec',gateway,'python3','-c',login)
                 print(result.stdout.strip())

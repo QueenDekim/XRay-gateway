@@ -8,6 +8,13 @@ tests
 ips.txt
 README.md
 .git
+!.git/
+.git/**
+!.git/HEAD
+!.git/packed-refs
+!.git/refs/
+!.git/refs/heads/
+!.git/refs/heads/**
 .github
 .backups
 docs

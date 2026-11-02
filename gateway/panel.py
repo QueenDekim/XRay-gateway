@@ -10,6 +10,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from controller import routeros
 from accounts import Accounts
+from version import build_info
+from localization import translate_message
 
 
 class Panel(http.server.BaseHTTPRequestHandler):
@@ -36,6 +38,14 @@ class Panel(http.server.BaseHTTPRequestHandler):
         pass
 
     def respond(self, status, data, cookie=None, content_type='application/json'):
+        if isinstance(data,dict):
+            language=self.headers.get('Accept-Language','ru')
+            data=dict(data)
+            for key in ('error','last_error','stats_error'):
+                if key in data:
+                    data[key]=translate_message(data[key],language)
+            if 'warnings' in data:
+                data['warnings']=[translate_message(value,language) for value in data['warnings']]
         raw = data if isinstance(data, bytes) else json.dumps(data, ensure_ascii=False).encode()
         self.send_response(status)
         for key, value in {'Content-Type': content_type, 'Content-Length': str(len(raw)), 'Cache-Control': 'no-store',
@@ -65,10 +75,16 @@ class Panel(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
-        if path in ('/', '/app.js', '/theme.js', '/style.css', '/favicon.png'):
+        if path == '/locales.js':
+            self.respond(200, b'window.XrayMessages = ' + (self.assets / 'locales.json').read_bytes() + b';\n', content_type='text/javascript; charset=utf-8')
+            return
+        if path == '/api/version':
+            self.respond(200, build_info())
+            return
+        if path in ('/', '/app.js', '/theme.js', '/i18n.js', '/locales.json', '/style.css', '/favicon.png'):
             filename = 'index.html' if path == '/' else path[1:]
             kind = {'html':'text/html; charset=utf-8', 'js':'text/javascript; charset=utf-8',
-                    'css':'text/css; charset=utf-8', 'png':'image/png'}[filename.rsplit('.', 1)[1]]
+                    'css':'text/css; charset=utf-8', 'png':'image/png', 'json':'application/json; charset=utf-8'}[filename.rsplit('.', 1)[1]]
             self.respond(200, (self.assets / filename).read_bytes(), content_type=kind)
             return
         _, session = self.session()

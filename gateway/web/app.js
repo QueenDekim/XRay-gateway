@@ -1,16 +1,20 @@
 'use strict';
 const $ = id => document.getElementById(id);
+const t = (source,...values) => window.I18n.t(source,...values);
+const locale = () => window.I18n.locale();
+const messages = new Map();
+function message(id,value){messages.set(id,value);$(id).textContent=typeof value==='function'?value():t(value);}
 let state = null, csrf = '', page = 'overview', editing = null, editRevision = 0;
-const fmt = (n, rate = false) => {n = Number(n || 0); const units = ['Б','КиБ','МиБ','ГиБ','ТиБ']; let i=0; while(n>=1024 && i<4){n/=1024;i++;}return `${n.toFixed(i ? 1 : 0)} ${units[i]}${rate?'/с':''}`;};
-const duration = n => {n=Math.max(0,Math.floor(n));return n>=86400?`${Math.floor(n/86400)} д ${Math.floor(n%86400/3600)} ч`:n>=3600?`${Math.floor(n/3600)} ч ${Math.floor(n%3600/60)} м`:`${Math.floor(n/60)} м ${n%60} с`;};
+const fmt = (n, rate = false) => {n = Number(n || 0); const units = ['Б','КиБ','МиБ','ГиБ','ТиБ']; let i=0; while(n>=1024 && i<4){n/=1024;i++;}return `${n.toFixed(i ? 1 : 0)} ${t(units[i])}${rate?t('/с'):''}`;};
+const duration = n => {n=Math.max(0,Math.floor(n));return n>=86400?`${Math.floor(n/86400)} ${t('д')} ${Math.floor(n%86400/3600)} ${t('ч')}`:n>=3600?`${Math.floor(n/3600)} ${t('ч')} ${Math.floor(n%3600/60)} ${t('м')}`:`${Math.floor(n/60)} ${t('м')} ${n%60} ${t('с')}`;};
 const esc = x => String(x ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function notice(text){$('notice').textContent=text;$('notice').hidden=!text;}
-async function api(path, data){const response=await fetch(path,{method:data?'POST':'GET',headers:data?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(65000)});const body=await response.json();if(!response.ok){if(response.status===401 && path!=='/api/login'){showLogin();}throw new Error(body.error || 'Ошибка запроса');}return body;}
+function notice(text){message('notice',text);$('notice').hidden=!text;}
+async function api(path, data){const response=await fetch(path,{method:data?'POST':'GET',headers:{'Accept-Language':window.I18n.language(),...(data?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{})},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(65000)});const body=await response.json();if(!response.ok){if(response.status===401 && path!=='/api/login'){showLogin();}throw new Error(t(body.error || 'Ошибка запроса'));}return body;}
 function showLogin(){$('loginView').hidden=false;$('appView').hidden=true;state=null;csrf='';for(const d of document.querySelectorAll('dialog[open]'))d.close();for(const id of ['passwordForm','userForm'])$(id).reset();for(const id of ['routingSettingsForm','probeSettingsForm','routerForm']){delete $(id).dataset.revision;delete $(id).dataset.dirty;}}
 async function refresh(){try{const data=await api('/api/state');state=data;csrf=data.csrf;$('loginView').hidden=true;$('appView').hidden=false;render();}catch(e){if(state)notice(e.message);}}
-function selectPage(value){page=value;for(const name of ['overview','profiles','iplists','routeros','settings'])$(name+'Page').hidden=name!==value;document.querySelectorAll('nav [data-page], .account-actions [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===value));$('settingsToggle').setAttribute('aria-pressed',String(value==='settings'));$('pageName').textContent={overview:'Обзор',profiles:'Профили',iplists:'IP-списки',routeros:'RouterOS',settings:'Настройки'}[value];}
+function selectPage(value){page=value;for(const name of ['overview','profiles','iplists','routeros','settings'])$(name+'Page').hidden=name!==value;document.querySelectorAll('nav [data-page], .account-actions [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===value));$('settingsToggle').setAttribute('aria-pressed',String(value==='settings'));$('pageName').textContent=t({overview:'Обзор',profiles:'Профили',iplists:'IP-списки',routeros:'RouterOS',settings:'Настройки'}[value]);}
 function status(p){if(!p.enabled)return ['Выключен','muted-state'];if(!p.health)return ['Проверка','pending'];if(state.checks[p.id]?.healthy)return [state.selected===p.id?'Активен':'Доступен',state.selected===p.id?'is-active':'ready'];return ['Недоступен','bad'];}
-function badge(p){const [label,cls]=status(p);return `<span class="badge ${cls}">${label}</span>`;}
+function badge(p){const [label,cls]=status(p);return `<span class="badge ${cls}">${t(label)}</span>`;}
 // All four renderers use the same samples, scale and time interval.
 function trafficSamples(history){return history.map(p=>({at:Number(p.at)||0,uplink_bps:Math.max(0,Number(p.uplink_bps)||0),downlink_bps:Math.max(0,Number(p.downlink_bps)||0)})).filter(p=>Number.isFinite(p.uplink_bps)&&Number.isFinite(p.downlink_bps));}
 function trafficPath(points, mode){
@@ -37,7 +41,7 @@ function renderTraffic(){
  $('downLine').setAttribute('d',design==='contour'?'':trafficPath(down,lineMode));
  $('upLine').setAttribute('d',design==='contour'?'':trafficPath(up,lineMode));
  $('downArea').setAttribute('d',design==='titan'&&down.length>1?trafficPath(down,'titan')+`L${down.at(-1).x},278L${down[0].x},278Z`:'');
- const title=(p,key)=>esc(new Date(p.at*1000).toLocaleTimeString('ru')+' · '+(key==='downlink_bps'?'Получено ':'Отправлено ')+fmt(p[key],true));
+ const title=(p,key)=>esc(new Date(p.at*1000).toLocaleTimeString(locale())+' · '+t(key==='downlink_bps'?'Получено':'Отправлено')+' '+fmt(p[key],true));
  $('trafficBars').innerHTML=design==='contour'?history.map((p,i)=>{
   const slot=1000/history.length,width=slot*.36;
   return ['downlink_bps','uplink_bps'].map((key,k)=>{const height=p[key]/peak*268;return `<rect class="traffic-bar ${k?'bar-up':'bar-down'}" x="${(i*slot+slot*.1+k*slot*.42).toFixed(2)}" y="${(278-height).toFixed(2)}" width="${width.toFixed(2)}" height="${height.toFixed(2)}" rx="1"><title>${title(p,key)}</title></rect>`;}).join('');
@@ -46,30 +50,30 @@ function renderTraffic(){
   const point=(k?up:down)[i];return `<circle class="traffic-marker ${k?'marker-up':'marker-down'}" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="3"><title>${title(p,key)}</title></circle>`;
  }).join('')).join(''):'';
  $('trafficChart').dataset.renderer=design;
- $('chartPeak').textContent='Шкала до '+fmt(peak,true);
- $('chartEmpty').textContent=history.length<2?'Ожидание измерений Xray…':`${history.length} измерений · ${new Date(history[0].at*1000).toLocaleTimeString('ru')} — ${new Date(history.at(-1).at*1000).toLocaleTimeString('ru')}`;
- $('trafficChartDescription').textContent=history.length?`${history.length} измерений. Входящий и исходящий трафик, байт в секунду. Максимум шкалы ${fmt(peak,true)}. Последнее измерение: получено ${fmt(history.at(-1).downlink_bps,true)}, отправлено ${fmt(history.at(-1).uplink_bps,true)}`:'Ожидание измерений Xray';
+ $('chartPeak').textContent=t('Шкала до {0}',fmt(peak,true));
+ $('chartEmpty').textContent=history.length<2?t('Ожидание измерений Xray…'):t('{0} измерений · {1} — {2}',history.length,new Date(history[0].at*1000).toLocaleTimeString(locale()),new Date(history.at(-1).at*1000).toLocaleTimeString(locale()));
+ $('trafficChartDescription').textContent=history.length?t('{0} измерений. Входящий и исходящий трафик, байт в секунду. Максимум шкалы {1}. Последнее измерение: получено {2}, отправлено {3}',history.length,fmt(peak,true),fmt(history.at(-1).downlink_bps,true),fmt(history.at(-1).uplink_bps,true)):t('Ожидание измерений Xray');
 }
 document.addEventListener('appearancechange',()=>{if(state)renderTraffic();});
-function render(){const s=state,t=s.totals;renderIpLists();renderSettings();notice(s.stats_error || s.last_error || '');$('username').textContent=s.username;$('coreStatus').textContent=s.ready?'Xray работает':'Xray недоступен';$('coreStatus').classList.toggle('bad',!s.ready);$('totalDown').textContent=fmt(t.downlink);$('totalUp').textContent=fmt(t.uplink);$('downRate').textContent=fmt(t.downlink_bps,true)+' сейчас';$('upRate').textContent=fmt(t.uplink_bps,true)+' сейчас';$('uptime').textContent=duration(s.uptime);$('profileCount').textContent=`${s.profiles.filter(p=>p.enabled).length} включено / ${s.profiles.length} профилей`;$('selectedName').textContent=s.profiles.find(p=>p.id===s.selected)?.name || 'Direct';$('routeSince').textContent='Выбран '+duration(Date.now()/1000-s.since)+' назад';$('updated').textContent='Обновлено '+new Date().toLocaleTimeString('ru');
- $('overviewProfiles').innerHTML=s.profiles.length?s.profiles.map(p=>`<article class="profile-card ${p.id===s.selected?'selected':''}"><div class="profile-identity"><div class="card-top"><h3>${esc(p.name)}</h3>${badge(p)}</div><p class="endpoint">${esc(p.address)}:${esc(p.port)} · ${esc(p.transport)}</p></div><div class="card-stats"><div><small>Задержка проверки</small><b>${p.health?.ok?p.health.latency_ms+' мс':'—'}</b></div><div><small>Успешных проверок</small><b>${p.stats.checks?((p.stats.successful_checks||0)/p.stats.checks*100).toFixed(1)+'%':'—'}</b></div><div><small>Получено</small><b>${fmt(p.stats.downlink)}</b></div><div><small>Отправлено</small><b>${fmt(p.stats.uplink)}</b></div></div></article>`).join(''):'<p class="muted">Профилей нет</p>';
- $('profileRows').innerHTML=s.profiles.map(p=>`<tr><td><b>${esc(p.name)}</b><small>${esc(p.address)}:${esc(p.port)} · ${esc(p.transport)}</small></td><td>${badge(p)}</td><td class="mono">${p.priority}</td><td class="mono">${p.health?.ok?p.health.latency_ms+' мс':'—'}</td><td class="mono">↓ ${fmt(p.stats.downlink)}<small>↑ ${fmt(p.stats.uplink)}</small></td><td class="mono">${p.stats.successful_checks||0} / ${p.stats.checks||0}</td><td><button data-edit="${p.id}">Изменить</button><button class="danger" data-delete="${p.id}">Удалить</button></td></tr>`).join('');$('directTraffic').textContent=`↓ ${fmt(s.direct.downlink)} / ↑ ${fmt(s.direct.uplink)}`;
+function render(){const s=state,totals=s.totals;renderIpLists();renderSettings();notice(s.stats_error || s.last_error || '');$('username').textContent=s.username;$('coreStatus').textContent=t(s.ready?'Xray работает':'Xray недоступен');$('coreStatus').classList.toggle('bad',!s.ready);$('totalDown').textContent=fmt(totals.downlink);$('totalUp').textContent=fmt(totals.uplink);$('downRate').textContent=fmt(totals.downlink_bps,true)+' '+window.I18n.t('сейчас');$('upRate').textContent=fmt(totals.uplink_bps,true)+' '+window.I18n.t('сейчас');$('uptime').textContent=duration(s.uptime);$('profileCount').textContent=window.I18n.t('{0} включено / {1} профилей',s.profiles.filter(p=>p.enabled).length,s.profiles.length);$('selectedName').textContent=s.profiles.find(p=>p.id===s.selected)?.name || 'Direct';$('routeSince').textContent=window.I18n.t('Выбран {0} назад',duration(Date.now()/1000-s.since));$('updated').textContent=window.I18n.t('Обновлено {0}',new Date().toLocaleTimeString(locale()));
+ $('overviewProfiles').innerHTML=s.profiles.length?s.profiles.map(p=>`<article class="profile-card ${p.id===s.selected?'selected':''}"><div class="profile-identity"><div class="card-top"><h3>${esc(p.name)}</h3>${badge(p)}</div><p class="endpoint">${esc(p.address)}:${esc(p.port)} · ${esc(p.transport)}</p></div><div class="card-stats"><div><small>${window.I18n.t('Задержка проверки')}</small><b>${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</b></div><div><small>${window.I18n.t('Успешных проверок')}</small><b>${p.stats.checks?((p.stats.successful_checks||0)/p.stats.checks*100).toFixed(1)+'%':'—'}</b></div><div><small>${window.I18n.t('Получено')}</small><b>${fmt(p.stats.downlink)}</b></div><div><small>${window.I18n.t('Отправлено')}</small><b>${fmt(p.stats.uplink)}</b></div></div></article>`).join(''):`<p class="muted">${window.I18n.t('Профилей нет')}</p>`;
+ $('profileRows').innerHTML=s.profiles.map(p=>`<tr><td><b>${esc(p.name)}</b><small>${esc(p.address)}:${esc(p.port)} · ${esc(p.transport)}</small></td><td>${badge(p)}</td><td class="mono">${p.priority}</td><td class="mono">${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</td><td class="mono">↓ ${fmt(p.stats.downlink)}<small>↑ ${fmt(p.stats.uplink)}</small></td><td class="mono">${p.stats.successful_checks||0} / ${p.stats.checks||0}</td><td><button data-edit="${p.id}">${window.I18n.t('Изменить')}</button><button class="danger" data-delete="${p.id}">${window.I18n.t('Удалить')}</button></td></tr>`).join('');$('directTraffic').textContent=`↓ ${fmt(s.direct.downlink)} / ↑ ${fmt(s.direct.uplink)}`;
  renderTraffic();
 }
-function editProfile(id){editing=id;editRevision=state.revision;const p=state.profiles.find(p=>p.id===id),f=$('profileForm');f.reset();f.elements.name.value=p?.name||'';f.elements.priority.value=p?.priority||10;f.elements.enabled.checked=p?.enabled??true;f.elements.uri.required=!p;$('dialogTitle').textContent=p?'Редактирование профиля':'Новый профиль';$('profileError').textContent='';$('profileDialog').showModal();}
-document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.page)selectPage(button.dataset.page);if(button.dataset.edit)editProfile(button.dataset.edit);if(button.dataset.delete){const p=state.profiles.find(p=>p.id===button.dataset.delete);if(!confirm(`Удалить профиль «${p.name}»? Xray будет перезапущен, текущие соединения прервутся.`))return;button.disabled=true;try{await api('/api/profiles/delete',{id:p.id,revision:state.revision});await refresh();}catch(e){notice(e.message);}finally{button.disabled=false;}}});
-$('loginForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;$('loginError').textContent='';try{await api('/api/login',Object.fromEntries(new FormData(e.target)));e.target.elements.password.value='';await refresh();}catch(error){$('loginError').textContent=error.message;}finally{b.disabled=false;}});
+function editProfile(id){editing=id;editRevision=state.revision;const p=state.profiles.find(p=>p.id===id),f=$('profileForm');f.reset();f.elements.name.value=p?.name||'';f.elements.priority.value=p?.priority||10;f.elements.enabled.checked=p?.enabled??true;f.elements.uri.required=!p;$('dialogTitle').textContent=t(p?'Редактирование профиля':'Новый профиль');message('profileError','');$('profileDialog').showModal();}
+document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.page)selectPage(button.dataset.page);if(button.dataset.edit)editProfile(button.dataset.edit);if(button.dataset.delete){const p=state.profiles.find(p=>p.id===button.dataset.delete);if(!confirm(t('Удалить профиль «{0}»? Xray будет перезапущен, текущие соединения прервутся.',p.name)))return;button.disabled=true;try{await api('/api/profiles/delete',{id:p.id,revision:state.revision});await refresh();}catch(e){notice(e.message);}finally{button.disabled=false;}}});
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;message('loginError','');try{await api('/api/login',Object.fromEntries(new FormData(e.target)));e.target.elements.password.value='';await refresh();}catch(error){message('loginError',error.message);}finally{b.disabled=false;}});
 $('logout').onclick=async()=>{try{await api('/api/logout',{});showLogin();}catch(e){notice(e.message);}};
 $('addProfile').onclick=()=>editProfile(null);$('closeDialog').onclick=()=>$('profileDialog').close();
-$('profileForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;$('profileError').textContent='';try{const data=Object.fromEntries(new FormData(e.target));data.enabled=e.target.elements.enabled.checked;data.priority=Number(data.priority);data.revision=editRevision;if(editing)data.id=editing;if(!confirm('Применить профиль и перезапустить Xray?'))return;$('profileError').textContent='Применение…';await api('/api/profiles/'+(editing?'edit':'add'),data);$('profileDialog').close();await refresh();}catch(error){$('profileError').textContent=error.message;}finally{b.disabled=false;}});
-$('routerForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{const data=await api('/api/routeros',Object.fromEntries(new FormData(e.target)));$('routerOutput').value=data.script;$('routerOutput').dataset.warnings=(data.warnings||[]).join(' ');$('copyRouter').disabled=false;$('copyStatus').textContent=['Скрипт сформирован',...(data.warnings||[])].join(' ');}catch(error){notice(error.message);}finally{b.disabled=false;}});
-$('copyRouter').onclick=async()=>{try{if(navigator.clipboard && window.isSecureContext){await navigator.clipboard.writeText($('routerOutput').value);}else{$('routerOutput').focus();$('routerOutput').select();if(!document.execCommand('copy'))throw new Error('copy');}$('copyStatus').textContent=['Скрипт скопирован',$('routerOutput').dataset.warnings||''].filter(Boolean).join(' ');}catch(e){$('copyStatus').textContent='Не удалось скопировать скрипт';}};
+$('profileForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;message('profileError','');try{const data=Object.fromEntries(new FormData(e.target));data.enabled=e.target.elements.enabled.checked;data.priority=Number(data.priority);data.revision=editRevision;if(editing)data.id=editing;if(!confirm(t('Применить профиль и перезапустить Xray?')))return;message('profileError','Применение…');await api('/api/profiles/'+(editing?'edit':'add'),data);$('profileDialog').close();await refresh();}catch(error){message('profileError',error.message);}finally{b.disabled=false;}});
+$('routerForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{const data=await api('/api/routeros',Object.fromEntries(new FormData(e.target)));$('routerOutput').value=data.script;$('routerOutput').dataset.warnings=(data.warnings||[]).join(' ');$('copyRouter').disabled=false;message('copyStatus',()=>[t('Скрипт сформирован'),...(data.warnings||[]).map(value=>t(value))].join(' '));}catch(error){notice(error.message);}finally{b.disabled=false;}});
+$('copyRouter').onclick=async()=>{try{if(navigator.clipboard && window.isSecureContext){await navigator.clipboard.writeText($('routerOutput').value);}else{$('routerOutput').focus();$('routerOutput').select();if(!document.execCommand('copy'))throw new Error('copy');}message('copyStatus',()=>[t('Скрипт скопирован'),t($('routerOutput').dataset.warnings||'')].filter(Boolean).join(' '));}catch(e){message('copyStatus','Не удалось скопировать скрипт');}};
 let editingList = null, editingListVersion = 0, listOptions = '';
-function listCount(n){const mod=n%100;return n+' '+(mod>=11&&mod<=14?'записей':n%10===1?'запись':n%10>=2&&n%10<=4?'записи':'записей');}
+function listCount(n){if(window.I18n.language()==='en')return n+' '+(n===1?'entry':'entries');const mod=n%100;return n+' '+(mod>=11&&mod<=14?'записей':n%10===1?'запись':n%10>=2&&n%10<=4?'записи':'записей');}
 function renderIpLists(){
  const lists=state.ip_lists||[];
- $('ipListCards').innerHTML=lists.length?lists.map(item=>`<article class="ip-list-card"><div class="card-top"><h2>${esc(item.name)}</h2><span class="list-count mono">${listCount(item.addresses.length)}</span></div><div class="ip-preview mono">${item.addresses.slice(0,5).map(esc).join('<br>')||'Пустой список'}</div><div class="ip-actions"><button class="secondary" data-list-edit="${item.id}">Изменить</button><button class="text-button" data-list-route="${item.id}">В RouterOS</button><button class="text-button danger" data-list-delete="${item.id}">Удалить</button></div></article>`).join(''):'<p class="muted">Списков нет</p>';
- const options='<option value="">Вручную</option>'+lists.map(item=>`<option value="${item.id}">${esc(item.name)} (${item.addresses.length})</option>`).join('');
+ $('ipListCards').innerHTML=lists.length?lists.map(item=>`<article class="ip-list-card"><div class="card-top"><h2>${esc(item.name)}</h2><span class="list-count mono">${listCount(item.addresses.length)}</span></div><div class="ip-preview mono">${item.addresses.slice(0,5).map(esc).join('<br>')||t('Пустой список')}</div><div class="ip-actions"><button class="secondary" data-list-edit="${item.id}">${t('Изменить')}</button><button class="text-button" data-list-route="${item.id}">${t('В RouterOS')}</button><button class="text-button danger" data-list-delete="${item.id}">${t('Удалить')}</button></div></article>`).join(''):`<p class="muted">${t('Списков нет')}</p>`;
+ const options=`<option value="">${window.I18n.t('Вручную')}</option>`+lists.map(item=>`<option value="${item.id}">${esc(item.name)} (${item.addresses.length})</option>`).join('');
  if(options!==listOptions){const previous=$('routerList').value,first=!listOptions;$('routerList').innerHTML=options;if(lists.some(item=>item.id===previous))$('routerList').value=previous;else if(first&&lists.length)$('routerList').value=lists[0].id;listOptions=options;}
  $('manualDestinations').hidden=Boolean($('routerList').value);
 }
@@ -78,8 +82,8 @@ function editIpList(identifier){
  editingList=identifier;editingListVersion=item?.version||0;
  $('ipListForm').reset();$('ipListForm').elements.name.value=item?.name||'';
  $('ipAddresses').value=item?.addresses.join('\n')||'';
- $('ipListTitle').textContent=item?'Редактирование списка':'Новый список';
- $('ipListError').textContent='';$('ipListDialog').showModal();
+ $('ipListTitle').textContent=t(item?'Редактирование списка':'Новый список');
+ message('ipListError','');$('ipListDialog').showModal();
 }
 async function copyText(value){
  if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(value);return;}
@@ -94,17 +98,17 @@ document.addEventListener('click',async event=>{
  const button=event.target.closest('button');if(!button)return;
  if(button.dataset.listEdit)editIpList(button.dataset.listEdit);
  if(button.dataset.listRoute){$('routerList').value=button.dataset.listRoute;$('manualDestinations').hidden=true;selectPage('routeros');}
- if(button.dataset.listDelete){const item=state.ip_lists.find(item=>item.id===button.dataset.listDelete);if(!confirm(`Удалить список «${item.name}»?`))return;button.disabled=true;try{await api('/api/ip-lists/delete',{id:item.id,version:item.version});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}}
+ if(button.dataset.listDelete){const item=state.ip_lists.find(item=>item.id===button.dataset.listDelete);if(!confirm(t('Удалить список «{0}»?',item.name)))return;button.disabled=true;try{await api('/api/ip-lists/delete',{id:item.id,version:item.version});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}}
 });
 $('ipListForm').addEventListener('submit',async event=>{
- event.preventDefault();const button=event.submitter;button.disabled=true;$('ipListError').textContent='';
+ event.preventDefault();const button=event.submitter;button.disabled=true;message('ipListError','');
  try{const data=Object.fromEntries(new FormData(event.target));if(editingList){data.id=editingList;data.version=editingListVersion;}
  await api('/api/ip-lists/'+(editingList?'edit':'add'),data);$('ipListDialog').close();await refresh();}
- catch(error){$('ipListError').textContent=error.message;}finally{button.disabled=false;}
+ catch(error){message('ipListError',error.message);}finally{button.disabled=false;}
 });
 $('importIps').onclick=()=>$('ipFile').click();
-$('ipFile').onchange=async()=>{const file=$('ipFile').files[0];if(!file)return;if(file.size>200000){$('ipListError').textContent='Размер файла превышает 200 КБ';return;}$('ipAddresses').value=await file.text();$('ipFile').value='';};
-$('copyIps').onclick=async()=>{try{await copyText($('ipAddresses').value);$('ipListError').textContent='';}catch(error){$('ipListError').textContent=error.message;}};
+$('ipFile').onchange=async()=>{const file=$('ipFile').files[0];if(!file)return;if(file.size>200000){message('ipListError','Размер файла превышает 200 КБ');return;}$('ipAddresses').value=await file.text();$('ipFile').value='';};
+$('copyIps').onclick=async()=>{try{await copyText($('ipAddresses').value);message('ipListError','');}catch(error){message('ipListError',error.message);}};
 
 const routingKeys = ['gateway','host','source','interface','local_networks'];
 const probeKeys = ['probe_url','check_interval','fail_threshold','recover_threshold'];
@@ -136,10 +140,10 @@ function renderSettings(){
  fillSettingsForm('routingSettingsForm',routingKeys,state.settings);
  fillSettingsForm('probeSettingsForm',probeKeys,state.settings);
  fillSettingsForm('routerForm',['source','interface','local_networks'],state.settings);
- $('userRows').innerHTML=admin?(state.users||[]).map(u=>`<tr><td><b>${esc(u.username)}</b>${u.id===state.user.id?'<small>Вы</small>':''}</td><td>${u.role==='admin'?'Администратор':'Пользователь'}</td><td><button data-user-edit="${u.id}">Изменить</button>${u.id===state.user.id?'':`<button class="danger" data-user-delete="${u.id}">Удалить</button>`}</td></tr>`).join(''):'';
+ $('userRows').innerHTML=admin?(state.users||[]).map(u=>`<tr><td><b>${esc(u.username)}</b>${u.id===state.user.id?`<small>${window.I18n.t('Вы')}</small>`:''}</td><td>${t(u.role==='admin'?'Администратор':'Пользователь')}</td><td><button data-user-edit="${u.id}">${window.I18n.t('Изменить')}</button>${u.id===state.user.id?'':`<button class="danger" data-user-delete="${u.id}">${window.I18n.t('Удалить')}</button>`}</td></tr>`).join(''):'';
 }
-function readableSettingsError(text){const labels={check_interval:'Интервал проверки',fail_threshold:'Порог ошибок',recover_threshold:'Порог восстановления'};return String(text).replace(/^(check_interval|fail_threshold|recover_threshold):/,(_,key)=>labels[key]+':');}
-function formStatus(id, text, error=false){$(id).textContent=text;$(id).classList.toggle('error',error);}
+function readableSettingsError(text){const labels={check_interval:'Интервал проверки',fail_threshold:'Порог ошибок',recover_threshold:'Порог восстановления'};return String(text).replace(/^(check_interval|fail_threshold|recover_threshold): допустимо целое число от (\d+) до (\d+)\.$/,(_,key,min,max)=>t('{0}: допустимо целое число от {1} до {2}.',t(labels[key]),min,max)).replace(/^(check_interval|fail_threshold|recover_threshold): enter an integer from (\d+) to (\d+)\.$/,(_,key,min,max)=>t('{0}: допустимо целое число от {1} до {2}.',t(labels[key]),min,max)).replace(/^(check_interval|fail_threshold|recover_threshold):/,(_,key)=>t(labels[key])+':');}
+function formStatus(id, text, error=false){message(id,text);$(id).classList.toggle('error',error);}
 for(const [id,statusId] of [['routingSettingsForm','routingSettingsStatus'],['probeSettingsForm','probeSettingsStatus']]){
  $(id).addEventListener('input',()=>{$(id).dataset.dirty='1';formStatus(statusId,'');});
  $(id).addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter,form=event.target;button.disabled=true;
@@ -155,20 +159,38 @@ $('passwordForm').addEventListener('submit',async event=>{event.preventDefault()
 function editUser(id){
  const user=(state.users||[]).find(u=>u.id===id),form=$('userForm');editingUser=id;editingUserRevision=user?.revision||0;form.reset();
  form.elements.username.value=user?.username||'';form.elements.role.value=user?.role||'operator';form.elements.password.required=!user;
- $('userDialogTitle').textContent=user?'Редактирование пользователя':'Новый пользователь';$('userPasswordLabel').textContent=user?'Новый пароль (необязательно)':'Пароль';$('userError').textContent='';$('userDialog').showModal();
+ $('userDialogTitle').textContent=t(user?'Редактирование пользователя':'Новый пользователь');$('userPasswordLabel').textContent=t(user?'Новый пароль (необязательно)':'Пароль');message('userError','');$('userDialog').showModal();
 }
 $('addUser').onclick=()=>editUser(null);
 $('closeUser').onclick=()=>$('userDialog').close();
-$('userDialog').addEventListener('close',()=>{$('userForm').reset();$('userError').textContent='';});
+$('userDialog').addEventListener('close',()=>{$('userForm').reset();message('userError','');});
 document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;
  if(button.dataset.userEdit)editUser(button.dataset.userEdit);
- if(button.dataset.userDelete){const user=state.users.find(u=>u.id===button.dataset.userDelete);if(!confirm(`Удалить пользователя «${user.username}»?`))return;button.disabled=true;
+ if(button.dataset.userDelete){const user=state.users.find(u=>u.id===button.dataset.userDelete);if(!confirm(t('Удалить пользователя «{0}»?',user.username)))return;button.disabled=true;
   try{await api('/api/users/delete',{id:user.id,revision:user.revision});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}
  }
 });
-$('userForm').addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter,form=event.target;button.disabled=true;$('userError').textContent='';
+$('userForm').addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter,form=event.target;button.disabled=true;message('userError','');
  try{const data=Object.fromEntries(new FormData(form));if(editingUser){data.id=editingUser;data.revision=editingUserRevision;}await api('/api/users/'+(editingUser?'edit':'add'),data);form.reset();$('userDialog').close();await refresh();}
- catch(error){$('userError').textContent=error.message;}finally{button.disabled=false;}
+ catch(error){message('userError',error.message);}finally{button.disabled=false;}
 });
 
-refresh();setInterval(()=>{if(state && !document.hidden)refresh();},5000);
+document.addEventListener('languagechange',()=>{
+ selectPage(page);
+ if(state)render();
+ $('dialogTitle').textContent=t(editing?'Редактирование профиля':'Новый профиль');
+ $('ipListTitle').textContent=t(editingList?'Редактирование списка':'Новый список');
+ $('userDialogTitle').textContent=t(editingUser?'Редактирование пользователя':'Новый пользователь');
+ $('userPasswordLabel').textContent=t(editingUser?'Новый пароль (необязательно)':'Пароль');
+ for(const [id,value]of messages)$(id).textContent=typeof value==='function'?value():t(value);
+});
+async function loadVersion(){
+ try{
+  const response=await fetch('/api/version',{signal:AbortSignal.timeout(10000)});
+  if(!response.ok)return;
+  const info=await response.json();
+  if(!/^\d+\.\d+(?:\.\d+)?-[0-9a-f]{7}$/.test(info.version)||info.url!=='https://github.com/QueenDekim/XRay-gateway/tree/'+info.version)return;
+  document.querySelectorAll('[data-version-link]').forEach(link=>{link.textContent=info.version;link.setAttribute('href',info.url);link.hidden=false;});
+ }catch{}
+}
+loadVersion();refresh();setInterval(()=>{if(state && !document.hidden)refresh();},5000);

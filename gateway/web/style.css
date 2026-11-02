@@ -429,6 +429,25 @@ main { min-height: calc(100vh - 64px); }
 
 /* Shared component hooks, without a shared visual skin. */
 .nav-icon { display: none; flex: 0 0 16px; }
+.shell > aside { display: flex; flex-direction: column; overflow-y: auto; }
+.sidebar-footer { margin-top: auto; padding: 24px 12px 0; }
+.version-link { color: var(--side-muted); font: 12px/1.5 Consolas, "Liberation Mono", monospace; white-space: nowrap; }
+.version-link:hover { color: var(--side-text); text-decoration: underline; text-underline-offset: 4px; }
+.login-version { position: absolute; left: 64px; bottom: 24px; }
+.login-language { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-bottom: 24px; }
+.login-language label { display: block; margin: 0; }
+.login-language select { width: auto; min-width: 120px; padding: 8px 12px; }
+.appearance-panel .language-field { margin-top: 32px; }
+.language-field > label { display: none; }
+.language-field select { max-width: 240px; }
+@media (max-width: 1200px) {
+  .login-version { left: 40px; }
+}
+@media (max-width: 700px) {
+  .sidebar-footer { margin-top: 16px; padding: 12px 0 0; }
+  .login-version { position: static; order: 2; margin-top: 24px; }
+  .login-language select { min-height: 44px; }
+}
 .profile-identity { min-width: 0; }
 .form-status:empty { display: none; }
 .preview-nav, .preview-title, .preview-numbers { display: none; }
@@ -640,7 +659,7 @@ main { min-height: calc(100vh - 64px); }
 :root[data-design="console"] .login-brand { border-right: 1px solid var(--field-border); }
 :root[data-design="console"] .login-brand h1 { font: 400 clamp(32px, 4vw, 56px)/1.2 var(--font-ui); letter-spacing: 0; }
 :root[data-design="console"] .login-form { padding: 24px; border: 1px solid var(--field-border); width: 424px; background: var(--surface); }
-:root[data-design="console"] .login-form h2 { width: fit-content; padding: 0 8px; margin: -40px 0 24px -8px; background: var(--surface); font-size: 20px; }
+:root[data-design="console"] .login-form h2 { width: fit-content; margin: 0 0 24px; font-size: 20px; }
 
 /* CONTOUR — broad rounded surfaces and split cards with a recessed data zone. */
 :root[data-design="contour"] aside { background: var(--paper); border: 0; padding: 32px 16px; }

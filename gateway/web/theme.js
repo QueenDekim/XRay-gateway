@@ -10,7 +10,8 @@
     document.documentElement.dataset.design = design;
     const button = document.getElementById('themeToggle');
     if (button) {
-      button.setAttribute('aria-label', theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему');
+      const text = theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему';
+      button.setAttribute('aria-label', window.I18n ? window.I18n.t(text) : text);
     }
     document.querySelectorAll('#appearanceForm input[name="design"]').forEach(input => { input.checked = input.value === design; });
     document.querySelectorAll('#appearanceForm input[name="colorScheme"]').forEach(input => { input.checked = input.value === theme; });
@@ -21,6 +22,7 @@
     apply(true);
   };
   apply();
+  document.addEventListener('languagechange', () => apply());
   document.addEventListener('DOMContentLoaded', () => {
     apply();
     document.getElementById('themeToggle').addEventListener('click', () => {

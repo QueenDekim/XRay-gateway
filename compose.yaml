@@ -6,6 +6,7 @@ services:
       dockerfile: gateway/Dockerfile
       args:
         XRAY_IMAGE: ${XRAY_IMAGE:-ghcr.io/xtls/xray-core:26.10.21}
+        SOURCE_REVISION: ${SOURCE_REVISION:-}
     restart: unless-stopped
     cap_add: [NET_ADMIN, NET_RAW]
     security_opt: [no-new-privileges:true]

@@ -65,6 +65,10 @@ port. Configure TLS on the proxy and restrict access to the panel. The extra
 interface uses `eth1`; the data plane and default route remain on `eth0`.
 Nginx Proxy Manager is one supported proxy, but the deployment does not require it.
 
+Build from a Git checkout to record the source revision in the image. For an
+exported source tree, set `SOURCE_REVISION` to the full commit SHA in `.env` or
+the build environment. The build stops if it cannot resolve a source revision.
+
 Use the same Compose file list for later updates, logs and shutdown commands.
 
 ## Existing installations

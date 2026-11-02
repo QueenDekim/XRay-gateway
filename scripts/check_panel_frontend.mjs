@@ -41,6 +41,13 @@ nodes.settingsToggle.dataset.page = 'settings';
 const settingsNames=['appearance','routing','probes','users','security'];
 for(const name of settingsNames)nodes['settingsTab-'+name].dataset.settingsTab=name;
 const appearanceInputs=[...html.matchAll(/<input type="radio" name="(design|colorScheme)" value="([^"]+)"[^>]*>/g)].map(m=>({name:m[1],value:m[2],checked:false}));
+const decode=value=>value.replaceAll('&quot;','"').replaceAll('&amp;','&').replaceAll('&lt;','<').replaceAll('&gt;','>');
+function translationNodes(attribute,datasetKey){return [...html.matchAll(new RegExp(`<[^>]+\\b${attribute}="([^"]+)"[^>]*>`,'g'))].map(match=>{
+ const id=match[0].match(/\bid="([^"]+)"/),node=id?nodes[id[1]]:{dataset:{},attributes:{},setAttribute(name,value){this.attributes[name]=value;}};
+ node.dataset[datasetKey]=decode(match[1]);return node;
+});}
+const translatedNodes=translationNodes('data-i18n','i18n'),translatedAria=translationNodes('data-i18n-aria','i18nAria');
+const versionLinks=[nodes.appVersion,{attributes:{},setAttribute(name,value){this.attributes[name]=value;}}];
 const documentEvents = {};
 const windowEvents = {}, storage = new Map();
 const context = vm.createContext({
@@ -48,16 +55,21 @@ const context = vm.createContext({
     querySelectorAll(selector) {
       if(selector === 'nav [data-page], .account-actions [data-page]')return [...navButtons, nodes.settingsToggle];
       if(selector.startsWith('#appearanceForm input'))return appearanceInputs.filter(input=>selector.includes(`name="${input.name}"`));
+      if(selector==='[data-i18n]')return translatedNodes;
+      if(selector==='[data-i18n-aria]')return translatedAria;
+      if(selector==='[data-language-select]')return [nodes.loginLanguage,nodes.languageSelect];
+      if(selector==='[data-version-link]')return versionLinks;
       return [];
     },
     addEventListener(name, fn) { (documentEvents[name] ||= []).push(fn); },
     dispatchEvent(event) { for(const fn of documentEvents[event.type]||[])fn(event); } },
-  window: { addEventListener(name, fn) { (windowEvents[name] ||= []).push(fn); } },
+  window: { XrayMessages:JSON.parse(fs.readFileSync(path.join(root,'gateway/web/locales.json'),'utf8')),addEventListener(name, fn) { (windowEvents[name] ||= []).push(fn); } },
   localStorage: { getItem:key=>storage.get(key), setItem:(key,value)=>storage.set(key,value) },
   matchMedia:()=>({matches:false}), CustomEvent:class { constructor(type){this.type=type;} },
   setInterval() {}, fetch: async () => ({ ok: false, status: 401, json: async () => ({ error: 'login' }) }),
   AbortSignal, Date, console,
 });
+vm.runInContext(fs.readFileSync(path.join(root,'gateway/web/i18n.js'),'utf8'),context);
 vm.runInContext(fs.readFileSync(path.join(root,'gateway/web/theme.js'),'utf8'),context);
 vm.runInContext(source, context);
 for(const fn of documentEvents.DOMContentLoaded||[])fn();
@@ -178,6 +190,21 @@ assert.equal(nodes.settingsToggle.attributes['aria-pressed'], 'false');
 assert.ok(!nodes.settingsToggle.classList.values.has('active'));
 assert.equal(nodes.routingSettingsForm.elements.gateway.value, '192.168.50.99');
 assert.equal(nodes.routingSettingsForm.dataset.revision, '1');
+context.window.I18n.setLanguage('en');
+assert.equal(context.document.documentElement.lang,'en');
+assert.equal(nodes.loginLanguage.value,'en');assert.equal(nodes.languageSelect.value,'en');
+assert.equal(nodes.pageName.textContent,'Overview');
+assert.equal(nodes.coreStatus.textContent,'Xray unavailable');
+assert.equal(nodes.routingSettingsForm.elements.gateway.value,'192.168.50.99');
+assert.ok(nodes.chartPeak.textContent.startsWith('Scale up to '));
+assert.equal(vm.runInContext("fmt(2048)",context),'2.0 KiB');
+assert.equal(vm.runInContext("listCount(2)",context),'2 entries');
+assert.equal(context.window.I18n.t('Неверный логин или пароль.'),'Invalid username or password.');
+assert.ok(translatedNodes.some(node=>node.dataset.i18n==='Логин'&&node.textContent==='Username'));
+assert.equal(storage.get('xray-language'),'en');
+context.window.I18n.setLanguage('ru');
+assert.equal(nodes.pageName.textContent,'Обзор');
+assert.equal(nodes.routingSettingsForm.elements.gateway.value,'192.168.50.99');
 context.FormData = class { constructor(form) { this.form=form; } *[Symbol.iterator]() { yield* Object.entries(this.form?.testData || { destinations:'1.1.1.1\n2606:4700:4700::1111' }); } };
 context.fetch = async (url, options) => { assert.equal(url,'/api/settings');assert.equal(JSON.parse(options.body).revision,1);return {ok:false,status:400,json:async()=>({error:'Настройки изменились'})}; };
 await nodes.routingSettingsForm.listeners.submit({preventDefault(){},submitter:{disabled:false},target:nodes.routingSettingsForm});
@@ -239,4 +266,7 @@ function reloadAppearance(storageApi, systemDark){
 storage.set('xray-design','console');storage.set('xray-theme','dark');
 assert.deepEqual({...reloadAppearance({getItem:key=>storage.get(key)},false)},{design:'console',theme:'dark'});
 assert.deepEqual({...reloadAppearance({getItem(){throw new Error('blocked');}},true)},{design:'titan',theme:'dark'});
-console.log('FRONTEND / EIGHT APPEARANCES / FOUR CHART RENDERERS / SETTINGS TABS / ROLES / STORAGE / CRUD / ESCAPING PASS');
+context.fetch=async url=>{assert.equal(url,'/api/version');return{ok:true,json:async()=>({version:'1.0-abcdef0',url:'https://github.com/QueenDekim/XRay-gateway/tree/1.0-abcdef0'})};};
+await vm.runInContext('loadVersion()',context);
+for(const link of versionLinks){assert.equal(link.textContent,'1.0-abcdef0');assert.equal(link.attributes.href,'https://github.com/QueenDekim/XRay-gateway/tree/1.0-abcdef0');assert.equal(link.hidden,false);}
+console.log('FRONTEND / RU-EN / VERSION LINKS / EIGHT APPEARANCES / FOUR CHART RENDERERS / SETTINGS / CRUD PASS');

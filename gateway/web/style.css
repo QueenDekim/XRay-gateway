@@ -429,6 +429,7 @@ main { min-height: calc(100vh - 64px); }
 
 /* Shared component hooks, without a shared visual skin. */
 .nav-icon { display: none; flex: 0 0 16px; }
+.heading-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .shell > aside { display: flex; flex-direction: column; overflow-y: auto; }
 .sidebar-footer { margin-top: auto; padding: 24px 12px 0; }
 .version-link { color: var(--side-muted); font: 12px/1.5 Consolas, "Liberation Mono", monospace; white-space: nowrap; }

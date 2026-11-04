@@ -6,10 +6,19 @@ Add VLESS TCP+REALITY or XHTTP+REALITY profiles. Lower priority numbers win amon
 enabled healthy profiles. Adding, editing or deleting a profile validates a new
 Xray configuration and restarts the core. Existing connections can close.
 
+Paste a VLESS URI or an HTTP/HTTPS subscription URL in the profile form. When you
+save a subscription URL, the panel imports one TCP/XHTTP profile with REALITY.
+For an existing profile, it prefers a node with the current transport. Otherwise
+it chooses the first supported node. Paste the URL again to import a later update.
+
 The panel reads Xray outbound counters and keeps cumulative totals in SQLite.
 Counters include probe traffic. The chart stores 90 samples in process memory;
 a supervisor restart clears that chart history. Deleting a profile preserves its
 contribution to cumulative totals.
+
+Use Reset check counters on the Profiles page to clear successful and total
+probe counts for the current profiles. Traffic totals and availability status
+continue from their current values.
 
 ## IP lists and settings
 
@@ -45,6 +54,9 @@ the CSRF token, then send that value in `X-CSRF-Token` on authenticated writes.
 
 Read `GET /api/version` without signing in for the version, source revision and
 tag URL. Send `Accept-Language: en` for English API errors; the default is Russian.
+
+Send `POST /api/profiles/reset-checks` with an empty JSON object and the session's
+CSRF token to reset profile probe counts.
 
 | Endpoint | Operation |
 | --- | --- |

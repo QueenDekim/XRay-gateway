@@ -63,6 +63,81 @@ class PanelTest(unittest.TestCase):
         _, data, _ = self.request('/api/state', headers={'Cookie': cookie})
         return {'Cookie': cookie, 'X-CSRF-Token': data['csrf']}
 
+    def test_profile_accepts_blank_tcp_header_and_subscription_url(self):
+        import base64
+        headers=self.auth()
+        payload={'name':'Primary','uri':URI+'&headerType=','priority':1,'enabled':True,'revision':self.c.revision}
+        self.assertEqual(self.request('/api/profiles/add',payload,headers)[0],200)
+        profile=self.c.list_profiles()[0]
+        self.assertEqual(profile['node']['streamSettings']['tcpSettings']['header']['type'],'none')
+        before=profile['id'],profile['slot']
+        subscription='http://example.org/sub/private-token'
+        payload.update(id=profile['id'],uri=subscription,revision=self.c.revision)
+        with patch('controller.fetch_subscription',return_value=base64.b64encode((URI+'&headerType=').encode())) as fetch:
+            self.assertEqual(self.request('/api/profiles/edit',payload,headers)[0],200)
+            fetch.assert_called_once_with(subscription,allow_http=True)
+        profile=self.c.list_profiles()[0]
+        self.assertEqual((profile['id'],profile['slot']),before)
+        self.assertNotIn(subscription,json.dumps(self.c.load('profiles',[])))
+
+    def test_profile_subscription_errors_are_specific_localized_and_redacted(self):
+        headers=self.auth()
+        payload={'name':'Primary','uri':'https://example.org/sub/private-token','priority':1,'enabled':True,'revision':self.c.revision}
+        with patch('controller.fetch_subscription',side_effect=OSError('connection failed '+payload['uri'])):
+            status,result,_=self.request('/api/profiles/add',payload,headers|{'Accept-Language':'en'})
+        self.assertEqual(status,400)
+        self.assertEqual(result['error'],'Could not download the subscription. Check the URL and server availability.')
+        self.assertNotIn('private-token',json.dumps(result))
+        self.assertEqual(self.c.list_profiles(),[])
+        with patch('controller.fetch_subscription',return_value=b'not a subscription'):
+            status,result,_=self.request('/api/profiles/add',payload,headers)
+        self.assertEqual(status,400)
+        self.assertIn('В подписке нет поддерживаемого',result['error'])
+
+    def test_subscription_fetch_rechecks_revision_and_does_not_lock_readers(self):
+        headers=self.auth()
+        def fetch(*args,**kwargs):
+            acquired=threading.Event()
+            def reader():
+                with self.c.lock:acquired.set()
+            thread=threading.Thread(target=reader);thread.start()
+            self.assertTrue(acquired.wait(1));thread.join()
+            with self.c.lock:self.c.revision+=1
+            return URI.encode()
+        payload={'name':'Primary','uri':'https://example.org/sub/token','priority':1,'enabled':True,'revision':self.c.revision}
+        with patch('controller.fetch_subscription',side_effect=fetch):
+            status,result,_=self.request('/api/profiles/add',payload,headers)
+        self.assertEqual(status,400)
+        self.assertEqual(result['error'],'Список уже изменился. Обновите страницу и повторите действие.')
+        self.assertEqual(self.c.list_profiles(),[])
+
+    def test_subscription_prefers_existing_transport(self):
+        from controller import resolve_profile_source
+        with patch('controller.fetch_subscription',return_value=(URI+'\n'+URI.replace('type=tcp','type=xhttp')).encode()):
+            node=resolve_profile_source('https://example.org/sub/token','xhttp')
+        self.assertEqual(node['streamSettings']['network'],'xhttp')
+
+    def test_reset_check_counters_keeps_traffic_health_and_profile_revision(self):
+        headers=self.auth()
+        self.c.change('add',{'name':'Primary','uri':URI,'priority':1,'enabled':True,'revision':self.c.revision})
+        identifier=self.c.profiles[0]['id']
+        self.c.stats={identifier:{'checks':12,'successful_checks':10,'uplink':1200,'downlink':9000,'downlink_bps':42},
+                      'direct':{'downlink':300}}
+        self.c.health={identifier:{'ok':True,'latency_ms':24}}
+        revision=self.c.revision
+        self.assertEqual(self.request('/api/profiles/reset-checks',{},headers|{'X-CSRF-Token':'invalid'})[0],403)
+        self.assertEqual(self.c.stats[identifier]['checks'],12)
+        with patch.object(self.c,'restart') as restart:
+            self.assertEqual(self.request('/api/profiles/reset-checks',{},headers)[0],200)
+        restart.assert_not_called()
+        self.assertEqual(self.c.stats[identifier],{'checks':0,'successful_checks':0,'uplink':1200,'downlink':9000,'downlink_bps':42})
+        self.assertEqual(self.c.health[identifier],{'ok':True,'latency_ms':24})
+        self.assertEqual(self.c.stats['direct'],{'downlink':300})
+        self.assertEqual(self.c.revision,revision)
+        reopened=Controller(self.root)
+        try:self.assertEqual(reopened.stats,self.c.stats)
+        finally:reopened.db.close()
+
     def test_auth_csrf_logout(self):
         self.assertEqual(self.request('/api/state')[0], 401)
         self.assertEqual(self.request('/api/login', {'username': 'admin', 'password': 'wrong'})[0], 401)

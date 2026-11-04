@@ -1,7 +1,7 @@
 """Build Xray configuration from VLESS subscription URLs without unsafe TLS bypass."""
 import argparse, base64, json, os, pathlib, re, sys
 from urllib.parse import parse_qs, unquote, urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request, HTTPRedirectHandler, build_opener
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 
 def extract_uris(payload):
@@ -46,17 +46,45 @@ def parse_vless(uri):
             except Exception as e: raise ValueError("Invalid xhttp extra JSON") from e
         stream["xhttpSettings"]=x
     else:
-        stream["tcpSettings"]={"header":{"type":q.get("headertype","none")}}
+        stream["tcpSettings"]={"header":{"type":q.get("headertype") or "none"}}
     return {"protocol":"vless","settings":{"vnext":[{"address":parsed.hostname,"port":parsed.port,
                                                      "users":[users]}]},
             "streamSettings":stream}
 
+class SubscriptionRedirects(HTTPRedirectHandler):
+    max_redirections=3
+
+    def __init__(self, allow_http):
+        super().__init__()
+        self.allow_http=allow_http
+
+    def redirect_request(self, request, fp, code, message, headers, new_url):
+        validate_subscription_url(new_url,self.allow_http)
+        if urlsplit(request.full_url).scheme=='https' and urlsplit(new_url).scheme!='https':
+            raise ValueError('Subscription redirect must preserve HTTPS')
+        return super().redirect_request(request,fp,code,message,headers,new_url)
+
+
+def validate_subscription_url(url,allow_http=False):
+    parsed=urlsplit(url)
+    if parsed.scheme not in (('https','http') if allow_http else ('https',)) or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError('Invalid subscription URL or transport')
+    if parsed.port is not None and not 1<=parsed.port<=65535:
+        raise ValueError('Invalid subscription port')
+
+
+def fetch_subscription(url,allow_http=False):
+    validate_subscription_url(url,allow_http)
+    opener=build_opener(SubscriptionRedirects(allow_http))
+    with opener.open(Request(url,headers={"User-Agent":"v2rayN/7.0"}),timeout=10) as response:
+        body=response.read(2_000_001)
+    if len(body)>2_000_000:
+        raise ValueError('Subscription response is too large')
+    return body
+
+
 def load_subscription(url, expected, allow_http=False):
-    if not url.startswith("https://"):
-        if not allow_http or not url.startswith('http://'):
-            raise ValueError('Subscription transport must use HTTPS')
-    with urlopen(Request(url,headers={"User-Agent":"v2rayN/7.0"}), timeout=15) as resp:
-        body=resp.read(2_000_000)
+    body=fetch_subscription(url,allow_http)
     for uri in extract_uris(body):
         try: node=parse_vless(uri)
         except ValueError: continue

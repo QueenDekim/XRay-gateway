@@ -127,7 +127,14 @@ class Panel(http.server.BaseHTTPRequestHandler):
                     self.sessions.pop(token, None)
                 self.respond(200, {'ok': True}, cookie='xray_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
             elif path in ('/api/profiles/add', '/api/profiles/edit', '/api/profiles/delete'):
-                self.controller.change(path.rsplit('/', 1)[1], data, str(data.get('id', '')))
+                try:
+                    self.controller.change(path.rsplit('/', 1)[1], data, str(data.get('id', '')))
+                except ValueError as exc:
+                    self.respond(400, {'error': str(exc)})
+                    return
+                self.respond(200, {'ok': True})
+            elif path == '/api/profiles/reset-checks':
+                self.controller.reset_profile_checks()
                 self.respond(200, {'ok': True})
             elif path == '/api/routeros':
                 settings = self.controller.settings()

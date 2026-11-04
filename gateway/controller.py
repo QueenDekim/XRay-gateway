@@ -14,7 +14,7 @@ import time
 import uuid
 from urllib.parse import urlsplit
 
-from render import parse_vless, inbound, httpproxy
+from render import parse_vless, fetch_subscription, extract_uris, inbound, httpproxy
 from environment import network_defaults, service_port
 
 
@@ -64,6 +64,33 @@ def atomic_json(path, value):
     tmp.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8')
     os.chmod(tmp, 0o600)
     tmp.replace(path)
+
+
+def resolve_profile_source(source,preferred_network=None):
+    if source.lower().startswith('vless://'):
+        try:
+            return parse_vless(source)
+        except (ValueError,TypeError):
+            raise ValueError('Некорректная VLESS-ссылка. Поддерживаются TCP и XHTTP с REALITY.') from None
+    if not source.lower().startswith(('https://','http://')):
+        raise ValueError('Укажите VLESS URI или HTTP/HTTPS-ссылку подписки.')
+    try:
+        payload=fetch_subscription(source,allow_http=True)
+    except Exception:
+        raise ValueError('Не удалось загрузить подписку. Проверьте ссылку и доступность сервера.') from None
+    try:
+        uris=extract_uris(payload)
+    except (ValueError,UnicodeError):
+        raise ValueError('В подписке нет поддерживаемого VLESS TCP/XHTTP-профиля с REALITY.') from None
+    nodes=[]
+    for uri in uris:
+        try:
+            nodes.append(parse_vless(uri))
+        except (ValueError,TypeError):
+            continue
+    if not nodes:
+        raise ValueError('В подписке нет поддерживаемого VLESS TCP/XHTTP-профиля с REALITY.')
+    return next((node for node in nodes if node['streamSettings']['network']==preferred_network),nodes[0])
 
 
 class Controller:
@@ -267,26 +294,38 @@ class Controller:
             candidate.unlink(missing_ok=True)
 
     def change(self, action, data, identifier=None):
+        try:
+            revision=int(data.get('revision', -1))
+        except (ValueError,TypeError):
+            raise ValueError('Список уже изменился. Обновите страницу и повторите действие.') from None
         with self.lock:
-            if int(data.get('revision', -1)) != self.revision:
+            if revision != self.revision:
                 raise ValueError('Список уже изменился. Обновите страницу и повторите действие.')
             profiles = self.list_profiles()
             current = next((p for p in profiles if p['id'] == identifier), None)
             if action != 'add' and current is None:
                 raise ValueError('Профиль не найден.')
-            if action == 'delete':
-                profiles.remove(current)
-            else:
+            if action != 'delete':
                 name = str(data.get('name', '')).strip()
                 if not 1 <= len(name) <= 80:
                     raise ValueError('Название должно содержать от 1 до 80 символов.')
-                priority = int(data.get('priority', 10))
+                try:
+                    priority = int(data.get('priority', 10))
+                except (ValueError,TypeError):
+                    raise ValueError('Некорректные приоритет или состояние профиля.') from None
                 if not 1 <= priority <= 1000 or not isinstance(data.get('enabled', True), bool):
                     raise ValueError('Некорректные приоритет или состояние профиля.')
                 uri = str(data.get('uri', '')).strip()
-                node = parse_vless(uri) if uri else copy.deepcopy(current['node']) if current else None
-                if node is None:
-                    raise ValueError('Укажите VLESS URI для нового профиля.')
+                preferred=current['node']['streamSettings']['network'] if current else None
+        # Subscription requests must not block statistics, probes or other panel readers.
+        if action != 'delete':
+            node = resolve_profile_source(uri,preferred) if uri else copy.deepcopy(current['node']) if current else None
+            if node is None:
+                raise ValueError('Укажите VLESS URI или ссылку подписки для нового профиля.')
+        with self.lock:
+            if revision != self.revision:
+                raise ValueError('Список уже изменился. Обновите страницу и повторите действие.')
+            if action != 'delete':
                 if current is None:
                     used = {p['slot'] for p in profiles}
                     # Slots are never reused: old conntrack marks must not select a different profile.
@@ -296,6 +335,8 @@ class Controller:
                     current = {'id': 'p_' + uuid.uuid4().hex[:12], 'slot': slot}
                     profiles.append(current)
                 current.update(name=name, priority=priority, enabled=data.get('enabled', True), node=node)
+            else:
+                profiles.remove(current)
             candidate = self.validate(profiles)
             previous = self.config.read_bytes()
             self.collect()
@@ -320,6 +361,14 @@ class Controller:
                 raise
             finally:
                 self.applying = False
+
+    def reset_profile_checks(self):
+        with self.lock:
+            stats=copy.deepcopy(self.stats)
+            for profile in self.profiles:
+                stats.setdefault(profile['id'],{}).update(checks=0,successful_checks=0)
+            self.save('stats',stats)
+            self.stats=stats
 
     def record_probe(self, identifier, ok, latency):
         with self.lock:

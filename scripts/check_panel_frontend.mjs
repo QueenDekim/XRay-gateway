@@ -269,4 +269,19 @@ assert.deepEqual({...reloadAppearance({getItem(){throw new Error('blocked');}},t
 context.fetch=async url=>{assert.equal(url,'/api/version');return{ok:true,json:async()=>({version:'1.0-abcdef0',url:'https://github.com/QueenDekim/XRay-gateway/tree/1.0-abcdef0'})};};
 await vm.runInContext('loadVersion()',context);
 for(const link of versionLinks){assert.equal(link.textContent,'1.0-abcdef0');assert.equal(link.attributes.href,'https://github.com/QueenDekim/XRay-gateway/tree/1.0-abcdef0');assert.equal(link.hidden,false);}
+const resetState=structuredClone(sample);
+resetState.csrf='test-csrf';resetState.profiles[0].stats.checks=0;resetState.profiles[0].stats.successful_checks=0;
+let resetCalled=false;
+context.fetch=async(url,options)=>{
+ if(url==='/api/profiles/reset-checks'){
+  assert.equal(options.method,'POST');resetCalled=true;
+  return{ok:true,json:async()=>({ok:true})};
+ }
+ assert.equal(url,'/api/state');return{ok:true,json:async()=>resetState};
+};
+await nodes.resetProfileChecks.onclick();
+assert.ok(resetCalled);assert.equal(nodes.resetProfileChecks.disabled,false);
+assert.ok(nodes.profileRows.innerHTML.includes('0 / 0'));
+context.window.I18n.setLanguage('en');
+assert.equal(nodes.resetProfileChecks.textContent,'Reset check counters');
 console.log('FRONTEND / RU-EN / VERSION LINKS / EIGHT APPEARANCES / FOUR CHART RENDERERS / SETTINGS / CRUD PASS');

@@ -2,14 +2,18 @@
 
 ## Profiles and measured traffic
 
-Add VLESS TCP+REALITY or XHTTP+REALITY profiles. Lower priority numbers win among
+Add VLESS profiles with TLS, REALITY or no transport encryption. Lower priority numbers win among
 enabled healthy profiles. Adding, editing or deleting a profile validates a new
 Xray configuration and restarts the core. Existing connections can close.
 
 Paste a VLESS URI or an HTTP/HTTPS subscription URL in the profile form. When you
-save a subscription URL, the panel imports one TCP/XHTTP profile with REALITY.
-For an existing profile, it prefers a node with the current transport. Otherwise
+save a subscription URL, the panel imports one supported VLESS profile.
+For an existing profile, it prefers the current transport and security mode. Otherwise
 it chooses the first supported node. Paste the URL again to import a later update.
+
+Read [VLESS transports](vless.md) for supported transports, URL parameters and
+the combinations accepted by the bundled Xray core. Profile cards show both the
+transport and security mode, such as `XHTTP / TLS` or `RAW/TCP / REALITY`.
 
 The panel reads Xray outbound counters and keeps cumulative totals in SQLite.
 Counters include probe traffic. The chart stores 90 samples in process memory;

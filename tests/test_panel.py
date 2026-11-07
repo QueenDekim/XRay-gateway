@@ -117,6 +117,21 @@ class PanelTest(unittest.TestCase):
             node=resolve_profile_source('https://example.org/sub/token','xhttp')
         self.assertEqual(node['streamSettings']['network'],'xhttp')
 
+    def test_subscription_prefers_existing_security_and_api_exposes_it(self):
+        from controller import resolve_profile_source
+        tls=URI.replace('type=tcp','type=xhttp').replace('security=reality','security=tls')
+        reality=URI.replace('type=tcp','type=xhttp')
+        with patch('controller.fetch_subscription',return_value=(tls+'\n'+reality).encode()):
+            node=resolve_profile_source('https://example.org/sub/token','xhttp','reality')
+        self.assertEqual(node['streamSettings']['security'],'reality')
+        headers=self.auth()
+        payload={'name':'TLS profile','uri':tls+'&fp=firefox&alpn=h2%2Chttp%2F1.1','priority':1,'enabled':True,'revision':self.c.revision}
+        self.assertEqual(self.request('/api/profiles/add',payload,headers)[0],200)
+        public=self.request('/api/state',headers=headers)[1]['profiles'][0]
+        self.assertEqual((public['transport'],public['security']),('xhttp','tls'))
+        self.assertNotIn('node',public)
+        self.assertNotIn('users',public)
+
     def test_reset_check_counters_keeps_traffic_health_and_profile_revision(self):
         headers=self.auth()
         self.c.change('add',{'name':'Primary','uri':URI,'priority':1,'enabled':True,'revision':self.c.revision})

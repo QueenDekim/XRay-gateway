@@ -100,6 +100,9 @@ if(process.env.XRAY_UI_FIXTURE){
  fs.writeFileSync(process.env.XRAY_UI_FIXTURE,fixture);
 }
 assert.equal(nodes.totalDown.textContent, '2.0 КиБ');
+assert.equal(vm.runInContext("profileTransport({transport:'xhttp',security:'tls'})",context),'XHTTP / TLS');
+assert.equal(vm.runInContext("profileTransport({transport:'tcp',security:'reality'})",context),'RAW/TCP / REALITY');
+assert.equal(vm.runInContext("profileTransport({transport:'ws',security:'none'})",context),'WebSocket / без TLS');
 assert.ok(nodes.overviewProfiles.innerHTML.includes('&lt;test&gt;'));
 assert.ok(nodes.profileRows.innerHTML.includes('Активен'));
 assert.equal(nodes.profilesPage.hidden, false);
@@ -284,4 +287,5 @@ assert.ok(resetCalled);assert.equal(nodes.resetProfileChecks.disabled,false);
 assert.ok(nodes.profileRows.innerHTML.includes('0 / 0'));
 context.window.I18n.setLanguage('en');
 assert.equal(nodes.resetProfileChecks.textContent,'Reset check counters');
+assert.equal(vm.runInContext("profileTransport({transport:'ws',security:'none'})",context),'WebSocket / No TLS');
 console.log('FRONTEND / RU-EN / VERSION LINKS / EIGHT APPEARANCES / FOUR CHART RENDERERS / SETTINGS / CRUD PASS');

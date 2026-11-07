@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- VLESS transport import with TLS, REALITY and none, including XHTTP/TLS,
+  WebSocket, gRPC, HTTPUpgrade, mKCP, Hysteria and XDrive.
 - Environment-based network, port and initial account configuration.
 - First-start account and Xray configuration initialization.
 - Optional reverse-proxy network and selectable macvlan/ipvlan data plane.

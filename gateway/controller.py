@@ -14,7 +14,7 @@ import time
 import uuid
 from urllib.parse import urlsplit
 
-from render import parse_vless, fetch_subscription, extract_uris, inbound, httpproxy
+from render import parse_vless, fetch_subscription, extract_uris, inbound, httpproxy, TRANSPORT_ALIASES
 from environment import network_defaults, service_port
 
 
@@ -66,12 +66,12 @@ def atomic_json(path, value):
     tmp.replace(path)
 
 
-def resolve_profile_source(source,preferred_network=None):
+def resolve_profile_source(source,preferred_network=None,preferred_security=None):
     if source.lower().startswith('vless://'):
         try:
             return parse_vless(source)
         except (ValueError,TypeError):
-            raise ValueError('Некорректная VLESS-ссылка. Поддерживаются TCP и XHTTP с REALITY.') from None
+            raise ValueError('Некорректная VLESS-ссылка. Проверьте транспорт, защиту и параметры подключения.') from None
     if not source.lower().startswith(('https://','http://')):
         raise ValueError('Укажите VLESS URI или HTTP/HTTPS-ссылку подписки.')
     try:
@@ -81,7 +81,7 @@ def resolve_profile_source(source,preferred_network=None):
     try:
         uris=extract_uris(payload)
     except (ValueError,UnicodeError):
-        raise ValueError('В подписке нет поддерживаемого VLESS TCP/XHTTP-профиля с REALITY.') from None
+        raise ValueError('В подписке нет поддерживаемого профиля VLESS.') from None
     nodes=[]
     for uri in uris:
         try:
@@ -89,8 +89,10 @@ def resolve_profile_source(source,preferred_network=None):
         except (ValueError,TypeError):
             continue
     if not nodes:
-        raise ValueError('В подписке нет поддерживаемого VLESS TCP/XHTTP-профиля с REALITY.')
-    return next((node for node in nodes if node['streamSettings']['network']==preferred_network),nodes[0])
+        raise ValueError('В подписке нет поддерживаемого профиля VLESS.')
+    preferred_network=TRANSPORT_ALIASES.get(preferred_network,preferred_network)
+    matches=[node for node in nodes if node['streamSettings']['network']==preferred_network]
+    return next((node for node in matches if node['streamSettings']['security']==preferred_security),matches[0] if matches else nodes[0])
 
 
 class Controller:
@@ -317,9 +319,10 @@ class Controller:
                     raise ValueError('Некорректные приоритет или состояние профиля.')
                 uri = str(data.get('uri', '')).strip()
                 preferred=current['node']['streamSettings']['network'] if current else None
+                preferred_security=current['node']['streamSettings'].get('security','none') if current else None
         # Subscription requests must not block statistics, probes or other panel readers.
         if action != 'delete':
-            node = resolve_profile_source(uri,preferred) if uri else copy.deepcopy(current['node']) if current else None
+            node = resolve_profile_source(uri,preferred,preferred_security) if uri else copy.deepcopy(current['node']) if current else None
             if node is None:
                 raise ValueError('Укажите VLESS URI или ссылку подписки для нового профиля.')
         with self.lock:
@@ -413,6 +416,7 @@ class Controller:
             result.append({k: p[k] for k in ('id', 'name', 'priority', 'enabled')} | {
                 'address': server.get('address', ''), 'port': server.get('port', ''),
                 'transport': node.get('streamSettings', {}).get('network', ''),
+                'security': node.get('streamSettings', {}).get('security', 'none'),
                 'stats': copy.deepcopy(self.stats.get(p['id'], {})), 'health': self.health.get(p['id'])})
         return result
 

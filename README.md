@@ -15,7 +15,7 @@
 # Xray Gateway
 
 Xray Gateway routes selected IPv4 traffic from a RouterOS network through VLESS
-REALITY profiles. A web panel manages profiles, IP lists, users and health checks.
+profiles. A web panel manages profiles, IP lists, users and health checks.
 
 Use a Linux Docker host connected to the client network. Configure the network
 addresses and parent interface in `.env`; the project has no dependency on a

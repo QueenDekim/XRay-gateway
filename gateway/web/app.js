@@ -76,13 +76,60 @@ function render(){const s=state,totals=s.totals;for(const id of ['addProfile','r
  $('profileRows').innerHTML=s.profiles.map(p=>`<tr><td><b>${esc(p.name)}</b><small>${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</small></td><td>${badge(p)}</td><td class="mono">${p.priority}</td><td class="mono">${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</td><td class="mono">↓ ${fmt(p.stats.downlink)}<small>↑ ${fmt(p.stats.uplink)}</small></td><td class="mono">${p.stats.successful_checks||0} / ${p.stats.checks||0}</td>${canManage()?`<td><button data-edit="${p.id}">${window.I18n.t('Изменить')}</button><button class="danger" data-delete="${p.id}">${window.I18n.t('Удалить')}</button></td>`:''}</tr>`).join('');$('directTraffic').textContent=`↓ ${fmt(s.direct.downlink)} / ↑ ${fmt(s.direct.uplink)}`;
  renderTraffic();window.Management?.render();
 }
-function editProfile(id){if(!canManage())return;editing=id;editRevision=state.revision;const p=state.profiles.find(p=>p.id===id),f=$('profileForm');f.reset();f.elements.name.value=p?.name||'';f.elements.priority.value=p?.priority||10;f.elements.enabled.checked=p?.enabled??true;f.elements.uri.required=!p;$('dialogTitle').textContent=t(p?'Редактирование профиля':'Новый профиль');message('profileError','');$('profileDialog').showModal();}
+let profileImport=null,profileSourceEpoch=0;
+function resetProfileImport(){
+ profileSourceEpoch++;profileImport=null;$('subscriptionProfiles').hidden=true;$('subscriptionOptions').innerHTML='';
+ $('profileNameField').hidden=false;$('profileForm').elements.name.required=true;
+ $('loadSubscription').hidden=!/^https?:\/\//i.test($('profileForm').elements.uri.value.trim());
+}
+function renderSubscriptionProfiles(updateOptions=true){
+ if(!profileImport)return;
+ const chosen=profileImport.selected;
+ if(updateOptions)$('subscriptionOptions').innerHTML=profileImport.profiles.map(p=>`<label class="subscription-option checkbox"><input type="${editing?'radio':'checkbox'}" name="subscriptionChoice" data-subscription-profile="${esc(p.id)}" ${chosen.has(p.id)?'checked':''}><span><b>${esc(p.name)}</b><small class="mono">${esc(p.address)}:${p.port} · ${esc(profileTransport(p))}</small></span></label>`).join('');
+ $('subscriptionProfiles').hidden=false;$('profileNameField').hidden=!editing&&chosen.size!==1;
+ const name=$('profileForm').elements.name;name.required=!$('profileNameField').hidden;
+ if(!editing&&chosen.size===1&&!name.value)name.value=profileImport.profiles.find(p=>chosen.has(p.id)).name;
+}
+async function loadProfileSubscription(){
+ if(!canManage())return false;
+ const source=$('profileForm').elements.uri.value.trim();resetProfileImport();const epoch=profileSourceEpoch,button=$('loadSubscription');button.disabled=true;message('profileError','Загрузка подписки…');
+ try{
+  const result=await api('/api/profiles/preview',{uri:source});
+  if(epoch!==profileSourceEpoch||!canManage()||!$('profileDialog').open||source!==$('profileForm').elements.uri.value.trim())return false;
+  const current=state.profiles.find(p=>p.id===editing),profiles=result.profiles;
+  const recommended=profiles.find(p=>p.address===current?.address&&p.port===current?.port&&p.transport===current?.transport&&p.security===current?.security)||profiles.find(p=>p.transport===current?.transport&&p.security===current?.security)||profiles[0];
+  profileImport={source,token:result.token,profiles,selected:new Set(editing?[recommended.id]:profiles.map(p=>p.id))};
+  renderSubscriptionProfiles();message('profileError',result.skipped?()=>t('Пропущено неподдерживаемых профилей: {0}',result.skipped):'');return true;
+ }catch(error){if(epoch===profileSourceEpoch)message('profileError',error.message);return false;}finally{if(epoch===profileSourceEpoch)button.disabled=false;}
+}
+$('loadSubscription').onclick=loadProfileSubscription;
+$('profileSource').addEventListener('input',()=>{resetProfileImport();$('loadSubscription').disabled=false;message('profileError','');});
+$('subscriptionOptions').addEventListener('change',event=>{
+ const id=event.target.dataset.subscriptionProfile;if(!profileImport||!id)return;
+ if(editing)profileImport.selected=new Set([id]);else if(event.target.checked)profileImport.selected.add(id);else profileImport.selected.delete(id);
+ renderSubscriptionProfiles(false);
+});
+$('profileDialog').addEventListener('close',()=>{resetProfileImport();$('loadSubscription').disabled=false;});
+function editProfile(id){if(!canManage())return;editing=id;editRevision=state.revision;const p=state.profiles.find(p=>p.id===id),f=$('profileForm');f.reset();f.elements.name.value=p?.name||'';f.elements.priority.value=p?.priority||10;f.elements.enabled.checked=p?.enabled??true;f.elements.uri.required=!p;resetProfileImport();$('loadSubscription').disabled=false;$('dialogTitle').textContent=t(p?'Редактирование профиля':'Новый профиль');message('profileError','');$('profileDialog').showModal();}
 document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.page)selectPage(button.dataset.page);if(button.dataset.edit)editProfile(button.dataset.edit);if(button.dataset.delete&&canManage()){const p=state.profiles.find(p=>p.id===button.dataset.delete);if(!await confirmAction(()=>t('Удалить профиль «{0}»? Xray будет перезапущен, текущие соединения прервутся.',p.name),'Удалить'))return;button.disabled=true;try{await api('/api/profiles/delete',{id:p.id,revision:state.revision});await refresh();}catch(e){notice(e.message);}finally{button.disabled=false;}}});
 $('loginForm').addEventListener('submit',event=>{event.preventDefault();window.Management.login(event);});
 $('logout').onclick=async()=>{try{await api('/api/logout',{});showLogin();}catch(e){notice(e.message);}};
 $('addProfile').onclick=()=>editProfile(null);$('closeDialog').onclick=()=>$('profileDialog').close();
 $('resetProfileChecks').onclick=async()=>{if(!canManage())return;const button=$('resetProfileChecks');button.disabled=true;try{await api('/api/profiles/reset-checks',{});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}};
-$('profileForm').addEventListener('submit',async e=>{e.preventDefault();if(!canManage())return;const b=e.submitter;b.disabled=true;message('profileError','');try{const data=Object.fromEntries(new FormData(e.target));data.enabled=e.target.elements.enabled.checked;data.priority=Number(data.priority);data.revision=editRevision;if(editing)data.id=editing;if(!await confirmAction('Применить профиль и перезапустить Xray?','Применить'))return;message('profileError','Применение…');await api('/api/profiles/'+(editing?'edit':'add'),data);$('profileDialog').close();await refresh();}catch(error){message('profileError',error.message);}finally{b.disabled=false;}});
+$('profileForm').addEventListener('submit',async e=>{
+ e.preventDefault();if(!canManage())return;const b=e.submitter;b.disabled=true;message('profileError','');
+ try{
+  const source=e.target.elements.uri.value.trim();
+  if(/^https?:\/\//i.test(source)&&profileImport?.source!==source){await loadProfileSubscription();return;}
+  const data=Object.fromEntries(new FormData(e.target));data.enabled=e.target.elements.enabled.checked;data.priority=Number(data.priority);data.revision=editRevision;if(editing)data.id=editing;
+  if(profileImport&&profileImport.source===source){
+   if(!profileImport.selected.size)throw new Error(t('Выберите хотя бы один профиль подписки.'));
+   data.subscription_token=profileImport.token;data.subscription_profiles=[...profileImport.selected];delete data.subscriptionChoice;
+  }
+  if(!await confirmAction('Применить профили и перезапустить Xray?','Применить'))return;
+  message('profileError','Применение…');await api('/api/profiles/'+(editing?'edit':'add'),data);$('profileDialog').close();await refresh();
+ }catch(error){message('profileError',error.message);}finally{b.disabled=false;}
+});
 $('routerForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{const data=await api('/api/routeros',Object.fromEntries(new FormData(e.target)));$('routerOutput').value=data.script;$('routerOutput').dataset.warnings=(data.warnings||[]).join(' ');$('copyRouter').disabled=false;message('copyStatus',()=>[t('Скрипт сформирован'),...(data.warnings||[]).map(value=>t(value))].join(' '));}catch(error){notice(error.message);}finally{b.disabled=false;}});
 $('copyRouter').onclick=async()=>{try{if(navigator.clipboard && window.isSecureContext){await navigator.clipboard.writeText($('routerOutput').value);}else{$('routerOutput').focus();$('routerOutput').select();if(!document.execCommand('copy'))throw new Error('copy');}message('copyStatus',()=>[t('Скрипт скопирован'),t($('routerOutput').dataset.warnings||'')].filter(Boolean).join(' '));}catch(e){message('copyStatus','Не удалось скопировать скрипт');}};
 let editingList = null, editingListVersion = 0, listOptions = '';
@@ -195,6 +242,7 @@ $('userForm').addEventListener('submit',async event=>{event.preventDefault();con
 document.addEventListener('languagechange',()=>{
  selectPage(page);
  if(state)render();
+ renderSubscriptionProfiles();
  $('dialogTitle').textContent=t(editing?'Редактирование профиля':'Новый профиль');
  $('ipListTitle').textContent=t(!canManage()?'Просмотр списка':editingList?'Редактирование списка':'Новый список');
  $('userDialogTitle').textContent=t(editingUser?'Редактирование пользователя':'Новый пользователь');

@@ -122,7 +122,7 @@ class ManagementTests(unittest.TestCase):
         service=RouterService(self.c);self.c.router_service=service;service.start=Mock()
         before=self.c.ip_lists()
         paths=['/api/ip-lists/'+action for action in ('add','edit','delete')]
-        paths+=['/api/profiles/'+action for action in ('add','edit','delete','reset-checks')]
+        paths+=['/api/profiles/'+action for action in ('add','edit','delete','reset-checks','preview')]
         paths+=['/api/routeros/'+action for action in ('apply','config','host-key','terminal/open','terminal/input','terminal/resize','terminal/close')]
         paths+=['/api/users/add','/api/users/edit','/api/users/delete','/api/settings']
         with patch.object(self.c,'change_ip_list') as lists,patch.object(self.c,'change') as profiles,patch.object(self.c,'reset_profile_checks') as counters:

@@ -10,7 +10,7 @@ import io
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
-from controller import routeros
+from controller import routeros, profile_sources
 from accounts import Accounts
 from version import build_info
 from localization import translate_message
@@ -203,9 +203,43 @@ class Panel(http.server.BaseHTTPRequestHandler):
                     with self.controller.lock:self.update_session_user(token,user)
                     self.respond(200,{'ok':True,'user':user}|({'recovery_codes':codes} if codes is not None else {}))
                 except ValueError as exc:self.respond(400,{'error':str(exc)})
+            elif path == '/api/profiles/preview':
+                try:
+                    source=str(data.get('uri','')).strip()
+                    entries,skipped=profile_sources(source)
+                    with self.controller.lock:
+                        _,live=self.session()
+                        if live is not session or live['user']['role']!='admin':
+                            self.respond(401,{'error':'Требуется вход.'});return
+                        preview={'token':secrets.token_urlsafe(24),'source':source,'expires':time.time()+300,'profiles':entries}
+                        session['subscription_preview']=preview
+                    public=[]
+                    for entry in entries:
+                        node=entry['node'];endpoint=node['settings']['vnext'][0];stream=node['streamSettings']
+                        public.append({key:entry[key] for key in ('id','name')}|{'address':endpoint['address'],
+                            'port':endpoint['port'],'transport':stream['network'],'security':stream['security']})
+                    self.respond(200,{'token':preview['token'],'profiles':public,'skipped':skipped})
+                except ValueError as exc:self.respond(400,{'error':str(exc)})
             elif path in ('/api/profiles/add', '/api/profiles/edit', '/api/profiles/delete'):
                 try:
-                    self.controller.change(path.rsplit('/', 1)[1], data, str(data.get('id', '')))
+                    prepared=None
+                    if data.get('subscription_token'):
+                        with self.controller.lock:
+                            preview=session.get('subscription_preview',{})
+                            if (preview.get('expires',0)<=time.time() or preview.get('token')!=data['subscription_token']
+                                or preview.get('source')!=str(data.get('uri','')).strip()):
+                                raise ValueError('Выбор подписки устарел. Загрузите подписку повторно.')
+                            selected=data.get('subscription_profiles')
+                            if (not isinstance(selected,list) or not selected or any(not isinstance(v,str) for v in selected)
+                                or len(set(selected))!=len(selected)):
+                                raise ValueError('Выберите хотя бы один профиль подписки.')
+                            entries={entry['id']:entry for entry in preview['profiles']}
+                            if any(value not in entries for value in selected):
+                                raise ValueError('Выбор подписки устарел. Загрузите подписку повторно.')
+                            prepared=[entries[value] for value in selected]
+                    self.controller.change(path.rsplit('/', 1)[1], data, str(data.get('id', '')),source_profiles=prepared)
+                    if prepared is not None and session.get('subscription_preview',{}).get('token')==data.get('subscription_token'):
+                        session.pop('subscription_preview',None)
                 except ValueError as exc:
                     self.respond(400, {'error': str(exc)})
                     return

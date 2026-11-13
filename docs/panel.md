@@ -6,10 +6,19 @@ Add VLESS profiles with TLS, REALITY or no transport encryption. Lower priority 
 enabled healthy profiles. Adding, editing or deleting a profile validates a new
 Xray configuration and restarts the core. Existing connections can close.
 
-Paste a VLESS URI or an HTTP/HTTPS subscription URL in the profile form. When you
-save a subscription URL, the panel imports one supported VLESS profile.
-For an existing profile, it prefers the current transport and security mode. Otherwise
-it chooses the first supported node. Paste the URL again to import a later update.
+Paste a VLESS URI or an HTTP/HTTPS subscription URL in the profile form.
+For subscriptions, click Load subscription, then select the profiles to import.
+When adding profiles, you can select several entries; each keeps its subscription
+name. For a single entry, you can edit the name before saving. To update an
+existing profile, select one replacement. The panel preserves its name, ID,
+priority and counters unless you change the editable fields.
+
+The panel reads plain and Base64 VLESS subscriptions, removes identical nodes
+and reports how many unsupported entries it skipped. It keeps the reviewed
+selection in your session for five minutes. Saving applies that selection in
+one configuration validation and core restart. Load the subscription again after
+five minutes or to fetch updated entries. The panel does not poll subscriptions
+or save their URLs to disk.
 
 Read [VLESS transports](vless.md) for supported transports, URL parameters and
 the combinations accepted by the bundled Xray core. Profile rows show both the
@@ -95,6 +104,15 @@ tag URL. Send `Accept-Language: en` for English API errors; the default is Russi
 
 Send `POST /api/profiles/reset-checks` with an empty JSON object and the session's
 CSRF token to reset profile probe counts.
+
+Administrators can send `POST /api/profiles/preview` with `uri` to read a
+subscription. The response contains a session-bound `token`, a `profiles` array
+with IDs, names, endpoints, transports and security modes, and a `skipped` count.
+Submit the same `uri`, `subscription_token` and an array of selected profile IDs
+in `subscription_profiles` to `/api/profiles/add` or `/edit`, along with the normal
+profile fields and revision. Add accepts several selections; edit accepts one.
+The token expires after five minutes, a successful save, or another preview in
+the same session. A multi-profile URL without a selection returns HTTP 400.
 
 | Endpoint | Operation |
 | --- | --- |

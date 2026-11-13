@@ -104,8 +104,8 @@ def transport_settings(network,q):
 
 def extract_uris(payload):
     text=payload.decode("utf-8-sig").strip()
-    if text.lower().startswith("vless://") or "vless://" in text:
-        return re.findall(r"vless://[^\s<\"']+", text)
+    if "vless://" in text.lower():
+        return re.findall(r"vless://[^\s<\"']+", text,re.IGNORECASE)
     try:
         obj=json.loads(text)
         if isinstance(obj,dict):
@@ -116,7 +116,7 @@ def extract_uris(payload):
     compact+= "="*((-len(compact))%4)
     try: decoded=base64.urlsafe_b64decode(compact).decode("utf-8-sig")
     except Exception as e: raise ValueError("Unknown subscription encoding") from e
-    uri=re.findall(r"vless://[^\s<\"']+", decoded)
+    uri=re.findall(r"vless://[^\s<\"']+", decoded,re.IGNORECASE)
     if not uri: raise ValueError("Subscription contained no vless:// URLs")
     return uri
 

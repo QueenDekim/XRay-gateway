@@ -322,5 +322,15 @@
   "Некорректный IPv4, IPv6, CIDR или домен: ": "Invalid IPv4, IPv6, CIDR or domain: ",
   "Укажите от 1 до 5000 IP-назначений или доменов.": "Enter 1 to 5000 IP destinations or domains.",
   "Подключение…": "Connecting…",
-  "Просмотр списка": "View list"
+  "Просмотр списка": "View list",
+  "В подписке больше 100 профилей. Сократите список.": "The subscription has more than 100 profiles. Reduce the list.",
+  "В подписке несколько профилей. Загрузите подписку и выберите нужные.": "The subscription has multiple profiles. Load it and select the profiles to import.",
+  "Выберите хотя бы один профиль подписки.": "Select at least one subscription profile.",
+  "Выбор подписки устарел. Загрузите подписку повторно.": "The subscription selection has expired. Load the subscription again.",
+  "Для замены выберите один профиль подписки.": "Select one subscription profile to replace the current profile.",
+  "Загрузить подписку": "Load subscription",
+  "Загрузка подписки…": "Loading subscription…",
+  "Применить профили и перезапустить Xray?": "Apply the profiles and restart Xray?",
+  "Пропущено неподдерживаемых профилей: {0}": "Unsupported profiles skipped: {0}",
+  "Профили подписки": "Subscription profiles"
 }

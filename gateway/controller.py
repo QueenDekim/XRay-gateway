@@ -1,5 +1,6 @@
 """Persistent profiles and measured Xray traffic, without a Docker socket."""
 import copy
+import hashlib
 import ipaddress
 import json
 import os
@@ -12,7 +13,7 @@ import subprocess
 import threading
 import time
 import uuid
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, unquote
 
 from render import parse_vless, fetch_subscription, extract_uris, inbound, httpproxy, TRANSPORT_ALIASES
 from environment import network_defaults, service_port
@@ -80,30 +81,40 @@ def atomic_json(path, value):
     tmp.replace(path)
 
 
-def resolve_profile_source(source,preferred_network=None,preferred_security=None):
-    if source.lower().startswith('vless://'):
-        try:
-            return parse_vless(source)
-        except (ValueError,TypeError):
-            raise ValueError('Некорректная VLESS-ссылка. Проверьте транспорт, защиту и параметры подключения.') from None
-    if not source.lower().startswith(('https://','http://')):
-        raise ValueError('Укажите VLESS URI или HTTP/HTTPS-ссылку подписки.')
-    try:
-        payload=fetch_subscription(source,allow_http=True)
-    except Exception:
-        raise ValueError('Не удалось загрузить подписку. Проверьте ссылку и доступность сервера.') from None
-    try:
-        uris=extract_uris(payload)
-    except (ValueError,UnicodeError):
-        raise ValueError('В подписке нет поддерживаемого профиля VLESS.') from None
-    nodes=[]
+def profile_sources(source):
+    """Parse each distinct VLESS node; never retain a subscription URL."""
+    direct=source.lower().startswith('vless://')
+    if direct:
+        uris=[source]
+    else:
+        if not source.lower().startswith(('https://','http://')):
+            raise ValueError('Укажите VLESS URI или HTTP/HTTPS-ссылку подписки.')
+        try:payload=fetch_subscription(source,allow_http=True)
+        except Exception:
+            raise ValueError('Не удалось загрузить подписку. Проверьте ссылку и доступность сервера.') from None
+        try:uris=extract_uris(payload)
+        except (ValueError,UnicodeError):
+            raise ValueError('В подписке нет поддерживаемого профиля VLESS.') from None
+    entries=[];seen=set();skipped=0
     for uri in uris:
-        try:
-            nodes.append(parse_vless(uri))
+        try:node=parse_vless(uri)
         except (ValueError,TypeError):
-            continue
-    if not nodes:
-        raise ValueError('В подписке нет поддерживаемого профиля VLESS.')
+            if direct:raise ValueError('Некорректная VLESS-ссылка. Проверьте транспорт, защиту и параметры подключения.') from None
+            skipped+=1;continue
+        identifier=hashlib.sha256(json.dumps(node,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+        if identifier in seen:continue
+        seen.add(identifier)
+        endpoint=node['settings']['vnext'][0]
+        name=''.join(char if char.isprintable() else ' ' for char in unquote(urlsplit(uri).fragment)).strip()[:80]
+        entries.append({'id':identifier,'name':name or endpoint['address'][:80], 'node':node})
+        if len(entries)>100:raise ValueError('В подписке больше 100 профилей. Сократите список.')
+    if not entries:raise ValueError('В подписке нет поддерживаемого профиля VLESS.')
+    return entries,skipped
+
+
+def resolve_profile_source(source,preferred_network=None,preferred_security=None):
+    entries,_=profile_sources(source)
+    nodes=[entry['node'] for entry in entries]
     preferred_network=TRANSPORT_ALIASES.get(preferred_network,preferred_network)
     matches=[node for node in nodes if node['streamSettings']['network']==preferred_network]
     return next((node for node in matches if node['streamSettings']['security']==preferred_security),matches[0] if matches else nodes[0])
@@ -312,7 +323,7 @@ class Controller:
         else:
             candidate.unlink(missing_ok=True)
 
-    def change(self, action, data, identifier=None):
+    def change(self, action, data, identifier=None, source_profiles=None):
         try:
             revision=int(data.get('revision', -1))
         except (ValueError,TypeError):
@@ -326,7 +337,7 @@ class Controller:
                 raise ValueError('Профиль не найден.')
             if action != 'delete':
                 name = str(data.get('name', '')).strip()
-                if not 1 <= len(name) <= 80:
+                if not (action=='add' and source_profiles and len(source_profiles)>1) and not 1 <= len(name) <= 80:
                     raise ValueError('Название должно содержать от 1 до 80 символов.')
                 try:
                     priority = int(data.get('priority', 10))
@@ -335,13 +346,16 @@ class Controller:
                 if not 1 <= priority <= 1000 or not isinstance(data.get('enabled', True), bool):
                     raise ValueError('Некорректные приоритет или состояние профиля.')
                 uri = str(data.get('uri', '')).strip()
-                preferred=current['node']['streamSettings']['network'] if current else None
-                preferred_security=current['node']['streamSettings'].get('security','none') if current else None
         # Subscription requests must not block statistics, probes or other panel readers.
         if action != 'delete':
-            node = resolve_profile_source(uri,preferred,preferred_security) if uri else copy.deepcopy(current['node']) if current else None
-            if node is None:
+            if source_profiles is None:
+                source_profiles=profile_sources(uri)[0] if uri else [{'node':copy.deepcopy(current['node'])}] if current else []
+                if len(source_profiles)>1:
+                    raise ValueError('В подписке несколько профилей. Загрузите подписку и выберите нужные.')
+            if not source_profiles:
                 raise ValueError('Укажите VLESS URI или ссылку подписки для нового профиля.')
+            if action=='edit' and len(source_profiles)!=1:
+                raise ValueError('Для замены выберите один профиль подписки.')
         with self.lock:
             if revision != self.revision:
                 raise ValueError('Список уже изменился. Обновите страницу и повторите действие.')
@@ -350,11 +364,14 @@ class Controller:
                     used = {p['slot'] for p in profiles}
                     # Slots are never reused: old conntrack marks must not select a different profile.
                     slot = int(self.load('next_slot', max(used | {3}) + 1))
-                    if slot > 100:
+                    if slot+len(source_profiles)-1 > 100:
                         raise ValueError('Достигнут предел слотов профилей (100).')
-                    current = {'id': 'p_' + uuid.uuid4().hex[:12], 'slot': slot}
-                    profiles.append(current)
-                current.update(name=name, priority=priority, enabled=data.get('enabled', True), node=node)
+                    for offset,entry in enumerate(source_profiles):
+                        profiles.append({'id':'p_'+uuid.uuid4().hex[:12],'slot':slot+offset,
+                            'name':entry['name'] if len(source_profiles)>1 else name,
+                            'priority':priority,'enabled':data.get('enabled',True),'node':copy.deepcopy(entry['node'])})
+                else:
+                    current.update(name=name, priority=priority, enabled=data.get('enabled', True), node=copy.deepcopy(source_profiles[0]['node']))
             else:
                 profiles.remove(current)
             candidate = self.validate(profiles)

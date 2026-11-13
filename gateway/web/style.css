@@ -195,6 +195,15 @@ dialog .primary { width: 100%; }
 .checkbox input { width: auto; accent-color: var(--accent); }
 dialog textarea { font: 12px/1.7 Consolas, "Liberation Mono", monospace; }
 
+.subscription-profiles { min-width: 0; padding: 0; margin: 24px 0; border: 0; }
+.subscription-profiles legend { padding: 0; margin-bottom: 12px; font-size: 13px; color: var(--secondary); }
+.subscription-options { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); }
+.subscription-option { gap: 12px; min-height: 48px; padding: 12px 0; margin: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.subscription-option > span { min-width: 0; }
+.subscription-option b { color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
+.subscription-option small { display: block; margin-top: 4px; font-size: 12px; overflow-wrap: anywhere; }
+.subscription-option input { flex-shrink: 0; }
+
 @media (max-width: 1200px) {
   .metrics article { padding: 20px 16px; }
   .metrics strong { font-size: 28px; }

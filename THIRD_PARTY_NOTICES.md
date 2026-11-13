@@ -29,3 +29,6 @@ pycparser (BSD-3-Clause), and Invoke (BSD-2-Clause).
 The web panel bundles xterm.js 6.0.0 and its fit addon 0.11.0 under the MIT
 license. The files, license texts and package integrity values are in
 `gateway/web/vendor/`. Source: [xterm.js](https://github.com/xtermjs/xterm.js).
+
+Development checks use `@xterm/headless` 6.0.0 from the same xterm.js project
+under the MIT license. Production containers use the bundled browser assets.

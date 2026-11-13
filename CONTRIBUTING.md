@@ -7,12 +7,18 @@ out of issues and pull requests.
 Use Python 3.12+ and Node.js 22+ for local checks:
 
 ```sh
+python -m pip install -r requirements.txt
+npm ci --ignore-scripts
 python -m unittest discover -s tests -v
 node --check gateway/web/app.js
 node --check gateway/web/theme.js
 node scripts/check_panel_frontend.mjs
+node scripts/check_terminal_emulator.mjs
 python scripts/check_docs.py
 ```
+
+The terminal check runs the xterm parser against startup probes and fragmented
+output. It checks first-screen padding, device replies and command scrollback.
 
 Test bootstrap changes against an empty runtime directory and preserve migrations
 for existing accounts and settings. Test routing changes for per-list isolation,

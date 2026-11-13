@@ -18,7 +18,7 @@ class LocalizationTests(unittest.TestCase):
         server=__import__('http.server',fromlist=['ThreadingHTTPServer']).ThreadingHTTPServer(('127.0.0.1',0),Panel)
         threading.Thread(target=server.serve_forever,daemon=True).start()
         try:
-            for path in ['/api/version','/locales.json','/locales.js','/i18n.js']:
+            for path in ['/api/version','/locales.json','/locales.js','/i18n.js','/terminal-stream.js']:
                 connection=http.client.HTTPConnection('127.0.0.1',server.server_port)
                 connection.request('GET',path);response=connection.getresponse();raw=response.read()
                 self.assertEqual(response.status,200,path)

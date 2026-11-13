@@ -302,7 +302,7 @@ context.confirm=()=>{throw new Error('Native confirmation must not be used');};
 context.atob=value=>Buffer.from(value,'base64').toString('binary');context.btoa=value=>Buffer.from(value,'binary').toString('base64');
 context.ResizeObserver=class{observe(){}};
 context.window.Terminal=class{
- cols=100;rows=30;output=[];reset(){}loadAddon(){}open(){}focus(){}onData(fn){this.send=fn;context.testTerminal=this;}write(data){this.output.push(Buffer.from(data).toString());}
+ cols=100;rows=30;output=[];buffer={active:{baseY:0}};reset(){}loadAddon(){}open(){}focus(){}onData(fn){this.send=fn;context.testTerminal=this;}write(data,done){if(data.length)this.output.push(Buffer.from(data).toString());done?.();}
 };context.window.FitAddon={FitAddon:class{fit(){}}};
 let loginResponse={requires_2fa:true,challenge:'test-challenge'},refreshes=0;
 let routerConfig={host:'192.168.50.1',port:22,username:'panel',auth:'key',fingerprint:'SHA256:pin',configured:true,passphrase_set:true};
@@ -319,6 +319,7 @@ context.mockAPI=async(url,data)=>{
  return{ok:true};
 };
 vm.runInContext('api=mockAPI; refresh=mockRefresh;',context);
+vm.runInContext(fs.readFileSync(path.join(root,'gateway/web/terminal-stream.js'),'utf8'),context);
 vm.runInContext(fs.readFileSync(path.join(root,'gateway/web/management.js'),'utf8'),context);
 await new Promise(resolve=>setImmediate(resolve));
 assert.equal(nodes.routerConnectionForm.elements.host.value,'192.168.50.1');

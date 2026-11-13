@@ -19,3 +19,5 @@ config/domains.txt
 config/derived-ips.txt
 routeros/
 gateway/_build.json
+
+node_modules/

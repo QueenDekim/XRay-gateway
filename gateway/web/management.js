@@ -2,7 +2,7 @@
 (() => {
  let challenge='',accountTab='profile',appliedUser='',applyingPreferences=false,preferenceTimer;
  let sshConnecting=false,sshManual=false,sshEpoch=0;
- let routerLoaded=false,savedRouter=null,jobTimer,jobId='',jobCursor=0,jobLines=[],sshId='',sshCursor=0,sshTimer,terminal,fit,sshSending=Promise.resolve();
+ let routerLoaded=false,savedRouter=null,jobTimer,jobId='',jobCursor=0,jobLines=[],sshId='',sshCursor=0,sshTimer,terminal,terminalStream,fit,sshSending=Promise.resolve();
  const jobState=value=>t(({queued:'В очереди',running:'Выполняется',done:'Завершено',error:'Ошибка'})[value]||value);
  const owns=['profile','appearance','security'];
  function resetFactor(){challenge='';$('loginCode').value='';message('loginFactorError','');}
@@ -23,7 +23,7 @@
   passwordStep();sshEpoch++;sshConnecting=false;sshManual=false;appliedUser='';routerLoaded=false;savedRouter=null;clearTimeout(preferenceTimer);clearTimeout(jobTimer);clearTimeout(sshTimer);jobId='';sshId='';
   for(const id of ['accountProfileForm','routerConnectionForm'])delete $(id).dataset.dirty;
   for(const id of ['factorSetupForm','factorEnableForm','factorManageForm','accountProfileForm','routerConnectionForm'])$(id).reset();credentialMasks();
-  $('recoveryCodes').value='';$('factorRecovery').hidden=true;$('factorEnrollment').hidden=true;message('factorSecret','');$('factorQr').removeAttribute('src');if(terminal)terminal.reset();
+  $('recoveryCodes').value='';$('factorRecovery').hidden=true;$('factorEnrollment').hidden=true;message('factorSecret','');$('factorQr').removeAttribute('src');if(terminalStream)terminalStream.reset().catch(()=>{});
  }
  async function login(event){
   const button=event.submitter;button.disabled=true;message('loginError','');passwordStep();
@@ -75,12 +75,12 @@
  $('closeRouterJob').onclick=()=>$('routerJobDialog').close();$('routerJobDialog').addEventListener('close',()=>{jobId='';clearTimeout(jobTimer);});
  document.addEventListener('click',event=>{const b=event.target.closest('button');if(b?.dataset.routerJob)openJob(b.dataset.routerJob);});$('refreshRouterJobs').onclick=loadJobs;
  function fitTerminal(){if(!terminal||!sshId)return;fit.fit();api('/api/routeros/terminal/resize',{id:sshId,cols:terminal.cols,rows:terminal.rows}).catch(error=>message('terminalStatus',error.message));}
- function initTerminal(){if(terminal)return;terminal=new window.Terminal({cursorBlink:false,fontFamily:'Consolas, "Liberation Mono", monospace',fontSize:14,scrollback:2000,theme:{background:'#111820',foreground:'#e4eaf2'}});fit=new window.FitAddon.FitAddon();terminal.loadAddon(fit);terminal.open($('sshTerminal'));terminal.onData(data=>{const id=sshId;if(id)sshSending=sshSending.then(()=>id===sshId?api('/api/routeros/terminal/input',{id,data}):null).catch(error=>message('terminalStatus',error.message));});new ResizeObserver(()=>fitTerminal()).observe($('sshTerminal'));}
- async function pollTerminal(){const id=sshId;if(!id)return;try{const result=await api('/api/routeros/terminal/'+id+'?cursor='+sshCursor);if(sshId!==id)return;sshCursor=result.cursor;if(result.data)terminal.write(Uint8Array.from(atob(result.data),v=>v.charCodeAt(0)));if(result.closed){sshId='';message('terminalStatus','Соединение закрыто');render();if(page==='routeros'&&!sshManual)connectTerminal();return;}}catch(error){if(sshId!==id)return;sshId='';message('terminalStatus',error.message);render();return;}sshTimer=setTimeout(pollTerminal,150);}
+ function initTerminal(){if(terminal)return;terminal=new window.Terminal({cursorBlink:false,fontFamily:'Consolas, "Liberation Mono", monospace',fontSize:14,scrollback:2000,theme:{background:'#111820',foreground:'#e4eaf2'}});fit=new window.FitAddon.FitAddon();terminal.loadAddon(fit);terminal.open($('sshTerminal'));terminalStream=new window.TerminalStream(terminal);terminal.onData(data=>{const id=sshId;if(id){terminalStream.input(data);sshSending=sshSending.then(()=>id===sshId?api('/api/routeros/terminal/input',{id,data}):null).catch(error=>message('terminalStatus',error.message));}});new ResizeObserver(()=>fitTerminal()).observe($('sshTerminal'));}
+ async function pollTerminal(){const id=sshId;if(!id)return;try{const result=await api('/api/routeros/terminal/'+id+'?cursor='+sshCursor);if(sshId!==id)return;sshCursor=result.cursor;if(result.data)await terminalStream.write(Uint8Array.from(atob(result.data),v=>v.charCodeAt(0)));if(sshId!==id)return;if(result.closed){sshId='';message('terminalStatus','Соединение закрыто');render();if(page==='routeros'&&!sshManual)connectTerminal();return;}}catch(error){if(sshId!==id)return;sshId='';message('terminalStatus',error.message);render();return;}sshTimer=setTimeout(pollTerminal,150);}
  async function connectTerminal(){
   if(sshId||sshConnecting||!state||state.user.role!=='admin')return;
   const epoch=sshEpoch;sshConnecting=true;sshManual=false;message('terminalStatus','Подключение…');render();
-  try{initTerminal();fit.fit();const result=await api('/api/routeros/terminal/open',{cols:terminal.cols,rows:terminal.rows});if(epoch!==sshEpoch)return;sshId=result.id;sshCursor=0;terminal.reset();message('terminalStatus','Подключено');if(page==='routeros')terminal.focus();pollTerminal();}
+  try{initTerminal();fit.fit();const result=await api('/api/routeros/terminal/open',{cols:terminal.cols,rows:terminal.rows});if(epoch!==sshEpoch)return;await terminalStream.reset();if(epoch!==sshEpoch)return;sshId=result.id;sshCursor=0;message('terminalStatus','Подключено');if(page==='routeros')terminal.focus();pollTerminal();}
   catch(error){if(epoch===sshEpoch)message('terminalStatus',error.message);}
   finally{if(epoch===sshEpoch){sshConnecting=false;render();}}
  }

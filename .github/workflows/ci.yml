@@ -17,12 +17,15 @@ jobs:
         with:
           node-version: '22'
       - run: python -m pip install -r requirements.txt
+      - run: npm ci --ignore-scripts
       - run: python -m unittest discover -s tests -v
       - run: node --check gateway/web/app.js
       - run: node --check gateway/web/theme.js
       - run: node --check gateway/web/i18n.js
       - run: node --check gateway/web/management.js
+      - run: node --check gateway/web/terminal-stream.js
       - run: node scripts/check_panel_frontend.mjs
+      - run: node scripts/check_terminal_emulator.mjs
       - run: python scripts/check_docs.py
       - run: python scripts/configure.py --env-file .env.example --check
       - run: docker compose --env-file .env.example config --quiet

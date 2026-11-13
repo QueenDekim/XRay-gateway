@@ -99,7 +99,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
             if asset.is_file() and asset.suffix in ('.js','.css'):
                 self.respond(200,asset.read_bytes(),content_type='text/javascript' if asset.suffix=='.js' else 'text/css')
                 return
-        if path in ('/', '/app.js', '/management.js', '/theme.js', '/i18n.js', '/locales.json', '/style.css', '/favicon.png'):
+        if path in ('/', '/app.js', '/management.js', '/terminal-stream.js', '/theme.js', '/i18n.js', '/locales.json', '/style.css', '/favicon.png'):
             filename = 'index.html' if path == '/' else path[1:]
             kind = {'html':'text/html; charset=utf-8', 'js':'text/javascript; charset=utf-8',
                     'css':'text/css; charset=utf-8', 'png':'image/png', 'json':'application/json; charset=utf-8'}[filename.rsplit('.', 1)[1]]

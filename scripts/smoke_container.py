@@ -59,7 +59,7 @@ state=json.load(client.open('http://127.0.0.1:8080/api/state'))
 assert state['username']=='smoke-owner' and state['profiles']==[] and state['ip_lists']==[] and state['ready']
 assert state['settings']['source']=='192.168.50.0/24'
 print('Fresh-volume state, authentication, localization and version PASS')
-for asset in ['management.js','vendor/xterm.js','vendor/addon-fit.js','vendor/xterm.css']:
+for asset in ['management.js','terminal-stream.js','vendor/xterm.js','vendor/addon-fit.js','vendor/xterm.css']:
  assert client.open('http://127.0.0.1:8080/'+asset).status==200
 csrf=state['csrf']
 def post(path,data):

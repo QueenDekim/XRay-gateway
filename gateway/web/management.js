@@ -28,7 +28,7 @@
   try{
    const data=challenge?{challenge,code:$('loginCode').value.trim()}:Object.fromEntries(new FormData(event.target));
    const result=await api(challenge?'/api/login/2fa':'/api/login',data);
-   if(result.requires_2fa){challenge=result.challenge;$('loginFactor').hidden=false;event.target.elements.password.value='';for(const name of ['username','password'])event.target.elements.namedItem(name).required=false;$('loginCode').required=true;$('loginCode').focus();return;}
+   if(result.requires_2fa){challenge=result.challenge;$('loginFactor').hidden=false;for(const name of ['username','password'])event.target.elements.namedItem(name).required=false;$('loginCode').required=true;$('loginCode').focus();return;}
    event.target.reset();passwordStep();await refresh();
   }catch(error){message('loginError',error.message);}finally{button.disabled=false;}
  }

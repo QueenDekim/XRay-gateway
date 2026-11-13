@@ -99,11 +99,30 @@ if(process.env.XRAY_UI_FIXTURE){
  }
  fs.writeFileSync(process.env.XRAY_UI_FIXTURE,fixture);
 }
+assert.equal(nodes.routerNav.hidden,false);
+assert.ok(html.includes('id="routerNav" data-page="routeros" hidden'));
 assert.equal(nodes.totalDown.textContent, '2.0 КиБ');
 assert.equal(vm.runInContext("profileTransport({transport:'xhttp',security:'tls'})",context),'XHTTP / TLS');
 assert.equal(vm.runInContext("profileTransport({transport:'tcp',security:'reality'})",context),'RAW/TCP / REALITY');
 assert.equal(vm.runInContext("profileTransport({transport:'ws',security:'none'})",context),'WebSocket / без TLS');
 assert.ok(nodes.overviewProfiles.innerHTML.includes('&lt;test&gt;'));
+for(const language of ['ru','en']){
+ context.window.I18n.setLanguage(language);
+ for(const [stats,expected]of [
+  [{checks:10000,successful_checks:9999},'~99.9%'],
+  [{checks:10000,successful_checks:10000},'100.0%'],
+  [{checks:1000,successful_checks:999},'99.9%'],
+  [{checks:4,successful_checks:3},'75.0%'],
+  [{checks:10,successful_checks:0},'0.0%'],[{},'—']
+ ]){
+  vm.runInContext(`state.profiles[0].stats=${JSON.stringify(stats)};render();`,context);
+  assert.ok(nodes.overviewProfiles.innerHTML.includes(`<b>${expected}</b>`),`${language}: ${expected}`);
+  if(stats.successful_checks<stats.checks)assert.ok(!nodes.overviewProfiles.innerHTML.includes('<b>100.0%</b>'));
+ }
+}
+vm.runInContext('state.profiles[0].stats={checks:4,successful_checks:3};',context);
+context.window.I18n.setLanguage('ru');
+
 assert.ok(nodes.profileRows.innerHTML.includes('Активен'));
 assert.equal(nodes.profilesPage.hidden, false);
 assert.equal(nodes.overviewPage.hidden, true);
@@ -212,7 +231,13 @@ context.FormData = class { constructor(form) { this.form=form; } *[Symbol.iterat
 context.fetch = async (url, options) => { assert.equal(url,'/api/settings');assert.equal(JSON.parse(options.body).revision,1);return {ok:false,status:400,json:async()=>({error:'Настройки изменились'})}; };
 await nodes.routingSettingsForm.listeners.submit({preventDefault(){},submitter:{disabled:false},target:nodes.routingSettingsForm});
 assert.equal(nodes.routingSettingsStatus.textContent,'Настройки изменились');
-vm.runInContext("state.user.role='operator'; state.users=[]; render();", context);
+vm.runInContext("selectPage('routeros');state.user.role='operator'; state.users=[]; render();", context);
+assert.equal(nodes.routerNav.hidden,true);
+assert.equal(nodes.routerosPage.hidden,true);
+assert.equal(nodes.overviewPage.hidden,false);
+vm.runInContext("selectPage('routeros');",context);
+assert.equal(nodes.routerosPage.hidden,true);
+assert.equal(nodes.overviewPage.hidden,false);
 for(const id of ['addProfile','resetProfileChecks','addIpList','profileActionsHeader'])assert.equal(nodes[id].hidden,true);
 assert.ok(!nodes.profileRows.innerHTML.includes('data-edit='));assert.ok(!nodes.profileRows.innerHTML.includes('data-delete='));
 assert.ok(nodes.ipListCards.innerHTML.includes('data-list-view='));
@@ -236,6 +261,7 @@ assert.equal(nodes.settingsToggle.hidden,true);
 for(const key of settingsNames)assert.equal(nodes['settingsPanel-'+key].hidden,true);
 vm.runInContext("state.user.role='admin'; state.history=[{at:1,uplink_bps:0,downlink_bps:0}]; renderTraffic();",context);
 vm.runInContext("render();editIpList('project');",context);
+assert.equal(nodes.routerNav.hidden,false);
 assert.equal(nodes.ipAddresses.readOnly,false);assert.equal(nodes.saveIpList.hidden,false);assert.equal(nodes.importIps.hidden,false);
 nodes.ipListDialog.close();
 assert.equal((nodes.trafficMarkers.innerHTML.match(/<circle /g)||[]).length,2);

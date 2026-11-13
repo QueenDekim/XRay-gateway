@@ -70,7 +70,12 @@ class RouterService:
     def public_config(self):
         with self.lock:
             config=self.config()
-            return {k:config.get(k,'') for k in ('host','port','username','auth','fingerprint')}|{'configured':bool(config.get('secret'))}
+            passphrase=config.get('passphrase_set',False)
+            if config.get('secret') and 'passphrase_set' not in config and config['auth']=='key':
+                try:value=self.secrets.open(config['secret'],'routeros:'+config['host']+':'+str(config['port'])+':'+config['username']+':'+config['auth'])
+                except RuntimeError as exc:raise ValueError(str(exc)) from None
+                passphrase=bool(value.get('passphrase'))
+            return {k:config.get(k,'') for k in ('host','port','username','auth','fingerprint')}|{'configured':bool(config.get('secret')),'passphrase_set':passphrase}
 
     def scan(self,data):
         host,port=endpoint(data)
@@ -93,14 +98,16 @@ class RouterService:
         with self.lock:
             previous=self.config()
             credential=data.get('private_key' if auth=='key' else 'password')
+            if auth=='key' and not credential and data.get('passphrase'):raise ValueError('Для смены пароля ключа укажите приватный SSH-ключ.')
             if credential:
                 if not isinstance(credential,str) or len(credential)>32768:raise ValueError('Некорректные SSH-реквизиты.')
-                value={'value':credential,'passphrase':str(data.get('passphrase',''))}
+                value={'value':credential,'passphrase':str(data.get('passphrase','')) if auth=='key' else ''}
                 encrypted=self.secrets.seal(value,'routeros:'+host+':'+str(port)+':'+username+':'+auth)
             elif all(previous.get(k)==v for k,v in [('host',host),('port',port),('username',username),('auth',auth)]) and previous.get('secret'):
                 encrypted=previous['secret']
             else:raise ValueError('Укажите пароль или приватный SSH-ключ.')
-            config={'host':host,'port':port,'username':username,'auth':auth,'fingerprint':pin,'secret':encrypted}
+            passphrase_set=bool(value.get('passphrase')) if credential and auth=='key' else (self.public_config()['passphrase_set'] if auth=='key' else False)
+            config={'host':host,'port':port,'username':username,'auth':auth,'fingerprint':pin,'secret':encrypted,'passphrase_set':passphrase_set}
         client=self.connect(config)
         try:
             self.execute(client,'/system identity print',lambda line:None,15)

@@ -127,6 +127,23 @@ class ManagementTests(unittest.TestCase):
         for _ in range(5):self.assertEqual(self.request('/api/account/2fa/setup',{'password':'wrong'},self.headers)[0],400)
         self.assertEqual(self.request('/api/account/2fa/setup',{'password':'test-password'},self.headers)[0],429)
 
+    def test_saved_router_credentials_are_marked_and_preserved_without_exposure(self):
+        service=RouterService(self.c);self.c.router_service=service
+        service.connect=Mock(return_value=Mock());service.execute=Mock(return_value='name: router')
+        data={'host':'router.example','port':22,'username':'panel','auth':'key','fingerprint':'SHA256:'+'a'*43,
+              'private_key':'private-key-fixture','passphrase':'passphrase-fixture'}
+        status,public,_=self.request('/api/routeros/config',data,self.headers)
+        self.assertEqual(status,200);self.assertTrue(public['configured']);self.assertTrue(public['passphrase_set'])
+        self.assertEqual(self.request('/api/routeros/config',headers=self.headers)[1],public)
+        for key in ('private_key','password','passphrase','secret'):self.assertNotIn(key,public)
+        saved=json.loads(service.path.read_text());self.assertNotIn('private-key-fixture',service.path.read_text())
+        self.assertEqual(self.request('/api/routeros/config',data|{'private_key':'','passphrase':''},self.headers)[0],200)
+        self.assertEqual(json.loads(service.path.read_text())['secret'],saved['secret'])
+        self.assertEqual(self.request('/api/routeros/config',data|{'private_key':''},self.headers)[0],400)
+        status,public,_=self.request('/api/routeros/config',data|{'auth':'password','password':'ssh-password-fixture'},self.headers)
+        self.assertEqual(status,200);self.assertTrue(public['configured']);self.assertFalse(public['passphrase_set'])
+        self.assertNotIn('ssh-password-fixture',json.dumps(public))
+
 
 class SecurityUnitTests(unittest.TestCase):
     def test_rfc6238_vectors(self):

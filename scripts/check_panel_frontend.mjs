@@ -305,10 +305,11 @@ context.window.Terminal=class{
  cols=100;rows=30;output=[];reset(){}loadAddon(){}open(){}focus(){}onData(fn){this.send=fn;context.testTerminal=this;}write(data){this.output.push(Buffer.from(data).toString());}
 };context.window.FitAddon={FitAddon:class{fit(){}}};
 let loginResponse={requires_2fa:true,challenge:'test-challenge'},refreshes=0;
+let routerConfig={host:'192.168.50.1',port:22,username:'panel',auth:'key',fingerprint:'SHA256:pin',configured:true,passphrase_set:true};
 context.mockRefresh=async()=>{refreshes++;};
 context.mockAPI=async(url,data)=>{
  calls.push({url,data});
- if(url==='/api/routeros/config')return{host:'192.168.50.1',port:22,username:'panel',auth:'key',fingerprint:'SHA256:pin',configured:true};
+ if(url==='/api/routeros/config')return routerConfig;
  if(url.startsWith('/api/login')){if(loginResponse instanceof Error)throw loginResponse;return loginResponse;}
  if(url==='/api/routeros/apply'||url==='/api/ip-lists/delete')return{id:'job-test'};
  if(url.startsWith('/api/routeros/jobs/'))return{id:'job-test',name:'Test list',status:'done',logs:['Applied'],cursor:1};
@@ -321,6 +322,15 @@ vm.runInContext('api=mockAPI; refresh=mockRefresh;',context);
 vm.runInContext(fs.readFileSync(path.join(root,'gateway/web/management.js'),'utf8'),context);
 await new Promise(resolve=>setImmediate(resolve));
 assert.equal(nodes.routerConnectionForm.elements.host.value,'192.168.50.1');
+assert.equal(nodes.routerConnectionForm.elements.private_key.value,'');
+assert.ok(nodes.routerConnectionForm.elements.private_key.placeholder.startsWith('•'));
+assert.ok(nodes.routerConnectionForm.elements.passphrase.placeholder.startsWith('•'));
+nodes.routerConnectionForm.elements.host.value='other-router';nodes.routerConnectionForm.listeners.input();
+assert.equal(nodes.routerConnectionForm.elements.private_key.placeholder,'');
+routerConfig={...routerConfig,auth:'password',passphrase_set:false};context.window.Management.clear();context.window.Management.render();
+await new Promise(resolve=>setImmediate(resolve));
+assert.equal(nodes.routerConnectionForm.elements.password.value,'');assert.ok(nodes.routerConnectionForm.elements.password.placeholder.startsWith('•'));
+assert.equal(nodes.routerConnectionForm.elements.private_key.placeholder,'');assert.equal(nodes.routerConnectionForm.elements.passphrase.placeholder,'');
 assert.equal(nodes.headerInitials.textContent,'A');
 nodes.accountToggle.onclick();assert.equal(nodes.accountPage.hidden,false);
 nodes.accountProfileForm.dataset.dirty='1';nodes.accountProfileForm.elements.display_name.value='Unsaved name';
@@ -372,6 +382,7 @@ await nodes.terminalDisconnect.onclick();assert.ok(calls.some(v=>v.url==='/api/r
 nodes.recoveryCodes.value='secret-recovery';nodes.routerConnectionForm.elements.private_key.value='secret-key';
 context.window.Management.clear();
 assert.equal(nodes.recoveryCodes.value,'');assert.equal(nodes.routerConnectionForm.elements.private_key.value,'');
+assert.equal(nodes.routerConnectionForm.elements.password.placeholder,'');
 assert.ok(![...storage.values()].some(v=>/secret-key|secret-recovery|private-test-password/.test(v)));
 const dismissed=vm.runInContext("confirmAction('Test close')",context);
 assert.equal(await vm.runInContext("confirmAction('Second request')",context),false);

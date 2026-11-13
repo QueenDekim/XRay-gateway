@@ -1,7 +1,7 @@
 'use strict';
 (() => {
  let challenge='',accountTab='profile',appliedUser='',applyingPreferences=false,preferenceTimer;
- let routerLoaded=false,jobTimer,jobId='',jobCursor=0,jobLines=[],sshId='',sshCursor=0,sshTimer,terminal,fit,sshSending=Promise.resolve();
+ let routerLoaded=false,savedRouter=null,jobTimer,jobId='',jobCursor=0,jobLines=[],sshId='',sshCursor=0,sshTimer,terminal,fit,sshSending=Promise.resolve();
  const jobState=value=>t(({queued:'В очереди',running:'Выполняется',done:'Завершено',error:'Ошибка'})[value]||value);
  const owns=['profile','appearance','security'];
  function resetFactor(){challenge='';$('loginCode').value='';message('loginFactorError','');}
@@ -19,9 +19,9 @@
   if(user.role==='admin'&&!routerLoaded)loadRouter();
  }
  function clear(){
-  passwordStep();appliedUser='';routerLoaded=false;clearTimeout(preferenceTimer);clearTimeout(jobTimer);clearTimeout(sshTimer);jobId='';sshId='';
+  passwordStep();appliedUser='';routerLoaded=false;savedRouter=null;clearTimeout(preferenceTimer);clearTimeout(jobTimer);clearTimeout(sshTimer);jobId='';sshId='';
   for(const id of ['accountProfileForm','routerConnectionForm'])delete $(id).dataset.dirty;
-  for(const id of ['factorSetupForm','factorEnableForm','factorManageForm','accountProfileForm','routerConnectionForm'])$(id).reset();
+  for(const id of ['factorSetupForm','factorEnableForm','factorManageForm','accountProfileForm','routerConnectionForm'])$(id).reset();credentialMasks();
   $('recoveryCodes').value='';$('factorRecovery').hidden=true;$('factorEnrollment').hidden=true;message('factorSecret','');$('factorQr').removeAttribute('src');if(terminal)terminal.reset();
  }
  async function login(event){
@@ -57,15 +57,16 @@
  for(const [form,path]of [['factorSetupForm','setup'],['factorEnableForm','enable'],['factorManageForm','manage']])$(form).addEventListener('submit',async event=>{event.preventDefault();const b=event.submitter;b.disabled=true;formStatus('factorStatus','');try{const action=path==='manage'?b.value:path;if(action==='disable'&&!await confirmAction('Отключить двухфакторную защиту?'))return;const data=Object.fromEntries(new FormData(event.target));const result=await api('/api/account/2fa/'+action,data);event.target.reset();if(action==='setup'){$('factorSecret').textContent=result.secret;$('factorQr').setAttribute('src','/api/account/2fa/qr?at='+Date.now());$('factorEnrollment').hidden=false;}else{recovery(result);await refresh();formStatus('factorStatus',action==='disable'?'Двухфакторная защита отключена':'Настройки сохранены');}}catch(error){formStatus('factorStatus',error.message,true);}finally{b.disabled=false;}});
  $('downloadRecovery').onclick=()=>{const blob=new Blob([$('recoveryCodes').value+'\n'],{type:'text/plain'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='xray-gateway-recovery-codes.txt';a.click();URL.revokeObjectURL(url);};
  $('closeRecovery').onclick=()=>{$('factorRecovery').hidden=true;$('recoveryCodes').value='';};
- function authFields(){$('routerKeyFields').hidden=$('routerAuth').value!=='key';$('routerPasswordField').hidden=$('routerAuth').value!=='password';}
+ function credentialMasks(){const f=$('routerConnectionForm'),same=savedRouter&&savedRouter.configured&&['host','username','auth'].every(key=>f.elements.namedItem(key).value.trim()===String(savedRouter[key]))&&Number(f.elements.port.value)===savedRouter.port;const fields={private_key:same&&savedRouter.auth==='key',password:same&&savedRouter.auth==='password',passphrase:same&&savedRouter.auth==='key'&&savedRouter.passphrase_set};for(const [name,present]of Object.entries(fields))f.elements.namedItem(name).placeholder=present?'••••••••••••':'';}
+ function authFields(){$('routerKeyFields').hidden=$('routerAuth').value!=='key';$('routerPasswordField').hidden=$('routerAuth').value!=='password';credentialMasks();}
  $('routerAuth').onchange=authFields;
- async function loadRouter(){routerLoaded=true;try{const config=await api('/api/routeros/config'),form=$('routerConnectionForm');if(form.dataset.dirty==='1')return;for(const key of ['host','port','username','auth','fingerprint'])form.elements.namedItem(key).value=config[key];authFields();message('routerConnectionState',config.configured?'Подключение настроено':'Подключение не настроено');}catch(error){routerLoaded=false;formStatus('routerConnectionStatus',error.message,true);}}
- $('routerConnectionForm').addEventListener('input',()=>{$('routerConnectionForm').dataset.dirty='1';});
+ async function loadRouter(){routerLoaded=true;try{const config=await api('/api/routeros/config'),form=$('routerConnectionForm');savedRouter=config;if(form.dataset.dirty==='1'){credentialMasks();return;}for(const key of ['host','port','username','auth','fingerprint'])form.elements.namedItem(key).value=config[key];authFields();message('routerConnectionState',config.configured?'Подключение настроено':'Подключение не настроено');}catch(error){routerLoaded=false;formStatus('routerConnectionStatus',error.message,true);}}
+ $('routerConnectionForm').addEventListener('input',()=>{$('routerConnectionForm').dataset.dirty='1';credentialMasks();});
  $('routerScanKey').onclick=async()=>{const b=$('routerScanKey');b.disabled=true;try{const form=$('routerConnectionForm'),result=await api('/api/routeros/host-key',{host:form.elements.host.value,port:Number(form.elements.port.value)});form.elements.fingerprint.value=result.fingerprint;form.dataset.dirty='1';formStatus('routerConnectionStatus','Отпечаток получен');}catch(error){formStatus('routerConnectionStatus',error.message,true);}finally{b.disabled=false;}};
  $('routerConnectionForm').addEventListener('submit',async event=>{event.preventDefault();const b=event.submitter;b.disabled=true;try{const data=Object.fromEntries(new FormData(event.target));data.port=Number(data.port);if(!await confirmAction(()=>t('Сохранить подключение к RouterOS с ключом {0}?',data.fingerprint),'Сохранить'))return;await api('/api/routeros/config',data);for(const name of ['password','private_key','passphrase'])event.target.elements.namedItem(name).value='';delete event.target.dataset.dirty;routerLoaded=false;await loadRouter();formStatus('routerConnectionStatus','Подключение проверено и сохранено');}catch(error){formStatus('routerConnectionStatus',error.message,true);}finally{b.disabled=false;}});
  $('openRouterScript').onclick=()=>$('routerScriptDialog').showModal();$('closeRouterScript').onclick=()=>$('routerScriptDialog').close();
  let recent=[];
- function renderJobs(){$('routerJobs').innerHTML=recent.map(job=>`<div class="operation-row"><div><b>${esc(job.name)}</b><small>${esc(t(job.action==='delete'?'Удаление списка':'Установка списка'))}</small></div><span>${esc(jobState(job.status))}</span><button class="text-button" data-router-job="${job.id}">${t('Журнал')}</button></div>`).join('')||`<p class="muted">${t('Операций пока нет')}</p>`;}
+ function renderJobs(){$('routerJobs').innerHTML=recent.map(job=>`<div class="operation-row"><div><b>${esc(job.name)}</b><small>${esc(t(job.action==='delete'?'Удаление списка':'Установка списка'))}</small></div><span class="operation-state${job.status==='error'?' is-error':''}">${esc(jobState(job.status))}</span><button class="text-button" data-router-job="${job.id}">${t('Журнал')}</button></div>`).join('')||`<p class="muted">${t('Операций пока нет')}</p>`;}
  async function loadJobs(){try{recent=(await api('/api/routeros/jobs')).jobs;renderJobs();}catch(error){notice(error.message);}}
  async function startJob(action,identifier){const item=state.ip_lists.find(v=>v.id===identifier);if(!item)return;const source=action==='delete'?'Удалить список «{0}» из панели и все его ресурсы в RouterOS?':'Установить или обновить список «{0}» в RouterOS?';if(!await confirmAction(()=>t(source,item.name),action==='delete'?'Удалить':'Применить'))return;try{const job=await api(action==='delete'?'/api/ip-lists/delete':'/api/routeros/apply',{id:item.id,version:item.version});openJob(job.id);}catch(error){notice(error.message);}}
  function openJob(identifier){jobId=identifier;jobCursor=0;jobLines=[];$('routerJobLog').textContent='';if(!$('routerJobDialog').open)$('routerJobDialog').showModal();clearTimeout(jobTimer);pollJob();}

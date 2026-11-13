@@ -27,6 +27,7 @@ this account. Protect administrator accounts with 2FA.
 
 Import the public key under `/user ssh-keys`. Paste the corresponding private
 key into the panel; encrypted private keys also require their passphrase.
+The panel marks saved credentials with a mask.
 Blank credential fields preserve saved credentials only for the same host,
 port, username and authentication method. The API never returns the private key,
 passphrase or SSH password.

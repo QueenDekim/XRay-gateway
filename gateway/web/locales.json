@@ -315,5 +315,6 @@
   "Подтвердить": "Confirm",
   "Отмена": "Cancel",
   "Применить": "Apply",
-  "Подтверждение входа": "Sign-in verification"
+  "Подтверждение входа": "Sign-in verification",
+  "Для смены пароля ключа укажите приватный SSH-ключ.": "Provide the private SSH key to change its passphrase."
 }

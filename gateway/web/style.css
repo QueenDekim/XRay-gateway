@@ -859,7 +859,12 @@ main { min-height: calc(100vh - 64px); }
 #factorQr { display: block; max-width: 100%; margin: 20px 0; }
 .factor-secret { display: block; overflow-wrap: anywhere; margin: 16px 0; font-family: var(--font-number); }
 #recoveryCodes { font-family: var(--font-number); margin: 16px 0; }
-.wide-dialog { width: min(1100px,94vw); max-width: 94vw; }
+:root[data-design] .wide-dialog { width: min(1100px,94vw); max-width: 94vw; }
+.confirmation-dialog { width: min(480px,calc(100vw - 32px)); }
+:root[data-design] .confirmation-dialog h2 { margin: 0; }
+.confirmation-dialog p { margin: 20px 0 24px; overflow-wrap: anywhere; color: var(--secondary); }
+.confirmation-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
+:root[data-design] .confirmation-actions .primary { width: auto; }
 .operation-log { min-height: 240px; max-height: 60vh; overflow: auto; background: var(--paper); border: 1px solid var(--line); padding: 16px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-number); }
 .operation-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .operation-row small { display: block; color: var(--secondary); }

@@ -31,7 +31,7 @@ const nodes = Object.fromEntries(ids.map(id => [id, {
   addEventListener(name, fn) { this.listeners[name] = fn; },
   focus() { this.focused = true; },
   reset() { for(const v of Object.values(this.elements))if(v && typeof v==='object')v.value=''; },
-  showModal() { this.open=true; }, close() { this.open=false; },
+  showModal() { this.open=true; }, close() { this.open=false; this.listeners.close?.({target:this}); },
   elements: { namedItem(name) { return this[name] ||= { value:'', checked:false, focus(){} }; } },
 }]));
 const navButtons = [...html.match(/<nav>[\s\S]*?<\/nav>/)[0].matchAll(/data-page="([^"]+)"/g)].map(m => ({
@@ -298,7 +298,7 @@ for(const form of html.matchAll(/<form\b[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/form
 }
 let timer=0;const pendingTimers=new Map(),calls=[];
 context.setTimeout=fn=>{pendingTimers.set(++timer,fn);return timer;};context.clearTimeout=id=>pendingTimers.delete(id);
-context.confirm=()=>true;
+context.confirm=()=>{throw new Error('Native confirmation must not be used');};
 context.atob=value=>Buffer.from(value,'base64').toString('binary');context.btoa=value=>Buffer.from(value,'binary').toString('base64');
 context.ResizeObserver=class{observe(){}};
 context.window.Terminal=class{
@@ -338,13 +338,17 @@ loginResponse={requires_2fa:true,challenge:'test-challenge'};await context.windo
 loginResponse={ok:true};nodes.loginCode.value='123456';await context.window.Management.login(loginEvent);
 assert.equal(nodes.loginFactor.hidden,true);assert.equal(nodes.loginCode.required,false);assert.ok(refreshes>0);
 assert.equal(calls.at(-1).data.challenge,'test-challenge');
-const count=calls.length;context.confirm=()=>false;
-await context.window.Management.startJob('apply','project');assert.equal(calls.length,count);
-context.confirm=()=>true;await context.window.Management.startJob('apply','project');
+const count=calls.length;
+let confirmation=context.window.Management.startJob('apply','project');
+assert.equal(nodes.confirmationDialog.open,true);assert.equal(nodes.confirmationCancel.focused,true);
+assert.equal(calls.length,count);nodes.confirmationCancel.onclick();await confirmation;assert.equal(calls.length,count);
+confirmation=context.window.Management.startJob('apply','project');
+assert.ok(nodes.confirmationText.textContent.includes('<Project>'));assert.equal(calls.length,count);
+nodes.confirmationAccept.onclick();await confirmation;
 await new Promise(resolve=>setImmediate(resolve));
 assert.ok(calls.some(v=>v.url==='/api/routeros/apply'&&v.data.id==='project'&&v.data.version===1));
 assert.equal(nodes.routerJobLog.textContent,'Applied');assert.equal(nodes.routerJobDialog.open,true);
-await context.window.Management.startJob('delete','project');await new Promise(resolve=>setImmediate(resolve));
+confirmation=context.window.Management.startJob('delete','project');nodes.confirmationAccept.onclick();await confirmation;await new Promise(resolve=>setImmediate(resolve));
 assert.ok(calls.some(v=>v.url==='/api/ip-lists/delete'&&v.data.id==='project'));
 await nodes.terminalConnect.onclick();await new Promise(resolve=>setImmediate(resolve));
 assert.equal(context.testTerminal.output.at(-1),'[panel@router] > ');
@@ -355,5 +359,10 @@ nodes.recoveryCodes.value='secret-recovery';nodes.routerConnectionForm.elements.
 context.window.Management.clear();
 assert.equal(nodes.recoveryCodes.value,'');assert.equal(nodes.routerConnectionForm.elements.private_key.value,'');
 assert.ok(![...storage.values()].some(v=>/secret-key|secret-recovery|private-test-password/.test(v)));
+const dismissed=vm.runInContext("confirmAction('Test close')",context);
+assert.equal(await vm.runInContext("confirmAction('Second request')",context),false);
+assert.equal(nodes.confirmationText.textContent,'Test close');nodes.confirmationDialog.close();assert.equal(await dismissed,false);
+assert.ok(!/\b(?:window\.)?confirm\(/.test(source));
+assert.ok(!/\b(?:window\.)?confirm\(/.test(fs.readFileSync(path.join(root,'gateway/web/management.js'),'utf8')));
 console.log('PERSONAL SETTINGS / MFA CHALLENGE / DIRTY FORMS / CONFIRMED ROUTER JOBS / PTY / SECRET CLEARING PASS');
 console.log('FRONTEND / RU-EN / VERSION LINKS / EIGHT APPEARANCES / FOUR CHART RENDERERS / SETTINGS / CRUD PASS');

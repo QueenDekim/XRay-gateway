@@ -4,6 +4,15 @@ const t = (source,...values) => window.I18n.t(source,...values);
 const locale = () => window.I18n.locale();
 const messages = new Map();
 function message(id,value){messages.set(id,value);$(id).textContent=typeof value==='function'?value():t(value);}
+let confirmationResolve=null,confirmationAccepted=false;
+function confirmAction(text,label='Подтвердить'){
+ if(confirmationResolve)return Promise.resolve(false);
+ message('confirmationText',text);message('confirmationAccept',label);confirmationAccepted=false;
+ return new Promise(resolve=>{confirmationResolve=resolve;$('confirmationDialog').showModal();$('confirmationCancel').focus();});
+}
+$('confirmationAccept').onclick=()=>{confirmationAccepted=true;$('confirmationDialog').close();};
+$('confirmationCancel').onclick=()=>$('confirmationDialog').close();
+$('confirmationDialog').addEventListener('close',()=>{const resolve=confirmationResolve;confirmationResolve=null;resolve?.(confirmationAccepted);confirmationAccepted=false;message('confirmationText','');});
 let state = null, csrf = '', page = 'overview', editing = null, editRevision = 0;
 const fmt = (n, rate = false) => {n = Number(n || 0); const units = ['Б','КиБ','МиБ','ГиБ','ТиБ']; let i=0; while(n>=1024 && i<4){n/=1024;i++;}return `${n.toFixed(i ? 1 : 0)} ${t(units[i])}${rate?t('/с'):''}`;};
 const duration = n => {n=Math.max(0,Math.floor(n));return n>=86400?`${Math.floor(n/86400)} ${t('д')} ${Math.floor(n%86400/3600)} ${t('ч')}`:n>=3600?`${Math.floor(n/3600)} ${t('ч')} ${Math.floor(n%3600/60)} ${t('м')}`:`${Math.floor(n/60)} ${t('м')} ${n%60} ${t('с')}`;};
@@ -62,12 +71,12 @@ function render(){const s=state,totals=s.totals;renderIpLists();renderSettings()
  renderTraffic();window.Management?.render();
 }
 function editProfile(id){editing=id;editRevision=state.revision;const p=state.profiles.find(p=>p.id===id),f=$('profileForm');f.reset();f.elements.name.value=p?.name||'';f.elements.priority.value=p?.priority||10;f.elements.enabled.checked=p?.enabled??true;f.elements.uri.required=!p;$('dialogTitle').textContent=t(p?'Редактирование профиля':'Новый профиль');message('profileError','');$('profileDialog').showModal();}
-document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.page)selectPage(button.dataset.page);if(button.dataset.edit)editProfile(button.dataset.edit);if(button.dataset.delete){const p=state.profiles.find(p=>p.id===button.dataset.delete);if(!confirm(t('Удалить профиль «{0}»? Xray будет перезапущен, текущие соединения прервутся.',p.name)))return;button.disabled=true;try{await api('/api/profiles/delete',{id:p.id,revision:state.revision});await refresh();}catch(e){notice(e.message);}finally{button.disabled=false;}}});
+document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.page)selectPage(button.dataset.page);if(button.dataset.edit)editProfile(button.dataset.edit);if(button.dataset.delete){const p=state.profiles.find(p=>p.id===button.dataset.delete);if(!await confirmAction(()=>t('Удалить профиль «{0}»? Xray будет перезапущен, текущие соединения прервутся.',p.name),'Удалить'))return;button.disabled=true;try{await api('/api/profiles/delete',{id:p.id,revision:state.revision});await refresh();}catch(e){notice(e.message);}finally{button.disabled=false;}}});
 $('loginForm').addEventListener('submit',event=>{event.preventDefault();window.Management.login(event);});
 $('logout').onclick=async()=>{try{await api('/api/logout',{});showLogin();}catch(e){notice(e.message);}};
 $('addProfile').onclick=()=>editProfile(null);$('closeDialog').onclick=()=>$('profileDialog').close();
 $('resetProfileChecks').onclick=async()=>{const button=$('resetProfileChecks');button.disabled=true;try{await api('/api/profiles/reset-checks',{});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}};
-$('profileForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;message('profileError','');try{const data=Object.fromEntries(new FormData(e.target));data.enabled=e.target.elements.enabled.checked;data.priority=Number(data.priority);data.revision=editRevision;if(editing)data.id=editing;if(!confirm(t('Применить профиль и перезапустить Xray?')))return;message('profileError','Применение…');await api('/api/profiles/'+(editing?'edit':'add'),data);$('profileDialog').close();await refresh();}catch(error){message('profileError',error.message);}finally{b.disabled=false;}});
+$('profileForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;message('profileError','');try{const data=Object.fromEntries(new FormData(e.target));data.enabled=e.target.elements.enabled.checked;data.priority=Number(data.priority);data.revision=editRevision;if(editing)data.id=editing;if(!await confirmAction('Применить профиль и перезапустить Xray?','Применить'))return;message('profileError','Применение…');await api('/api/profiles/'+(editing?'edit':'add'),data);$('profileDialog').close();await refresh();}catch(error){message('profileError',error.message);}finally{b.disabled=false;}});
 $('routerForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{const data=await api('/api/routeros',Object.fromEntries(new FormData(e.target)));$('routerOutput').value=data.script;$('routerOutput').dataset.warnings=(data.warnings||[]).join(' ');$('copyRouter').disabled=false;message('copyStatus',()=>[t('Скрипт сформирован'),...(data.warnings||[]).map(value=>t(value))].join(' '));}catch(error){notice(error.message);}finally{b.disabled=false;}});
 $('copyRouter').onclick=async()=>{try{if(navigator.clipboard && window.isSecureContext){await navigator.clipboard.writeText($('routerOutput').value);}else{$('routerOutput').focus();$('routerOutput').select();if(!document.execCommand('copy'))throw new Error('copy');}message('copyStatus',()=>[t('Скрипт скопирован'),t($('routerOutput').dataset.warnings||'')].filter(Boolean).join(' '));}catch(e){message('copyStatus','Не удалось скопировать скрипт');}};
 let editingList = null, editingListVersion = 0, listOptions = '';
@@ -168,7 +177,7 @@ $('closeUser').onclick=()=>$('userDialog').close();
 $('userDialog').addEventListener('close',()=>{$('userForm').reset();message('userError','');});
 document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;
  if(button.dataset.userEdit)editUser(button.dataset.userEdit);
- if(button.dataset.userDelete){const user=state.users.find(u=>u.id===button.dataset.userDelete);if(!confirm(t('Удалить пользователя «{0}»?',user.username)))return;button.disabled=true;
+ if(button.dataset.userDelete){const user=state.users.find(u=>u.id===button.dataset.userDelete);if(!await confirmAction(()=>t('Удалить пользователя «{0}»?',user.username),'Удалить'))return;button.disabled=true;
   try{await api('/api/users/delete',{id:user.id,revision:user.revision});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}
  }
 });

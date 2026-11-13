@@ -59,6 +59,34 @@ state=json.load(client.open('http://127.0.0.1:8080/api/state'))
 assert state['username']=='smoke-owner' and state['profiles']==[] and state['ip_lists']==[] and state['ready']
 assert state['settings']['source']=='192.168.50.0/24'
 print('Fresh-volume state, authentication, localization and version PASS')
+for asset in ['management.js','vendor/xterm.js','vendor/addon-fit.js','vendor/xterm.css']:
+ assert client.open('http://127.0.0.1:8080/'+asset).status==200
+csrf=state['csrf']
+def post(path,data):
+ request=urllib.request.Request('http://127.0.0.1:8080'+path,data=json.dumps(data).encode(),headers={'Content-Type':'application/json','X-CSRF-Token':csrf})
+ return json.load(client.open(request))
+from two_factor import totp
+import base64,io,time
+from PIL import Image
+setup=post('/api/account/2fa/setup',{'password':'smoke-test-password'})
+assert client.open('http://127.0.0.1:8080/api/account/2fa/qr').read().startswith(b'\x89PNG')
+enabled=post('/api/account/2fa/enable',{'code':totp(setup['secret'],int(time.time()//30))})
+assert enabled['user']['two_factor_enabled'] and len(enabled['recovery_codes'])==10
+post('/api/logout',{})
+challenge=post('/api/login',{'username':'smoke-owner','password':'smoke-test-password'})
+assert challenge['requires_2fa'] and not list(jar)
+post('/api/login/2fa',{'challenge':challenge['challenge'],'code':enabled['recovery_codes'][0]})
+state=json.load(client.open('http://127.0.0.1:8080/api/state'));csrf=state['csrf']
+assert state['user']['recovery_remaining']==9
+post('/api/account/2fa/disable',{'password':'smoke-test-password','code':enabled['recovery_codes'][1]})
+post('/api/account/profile',{'display_name':'Container smoke','preferences':{'design':'console','colorScheme':'dark','language':'en'}})
+output=io.BytesIO();Image.new('RGB',(32,40),'#385b70').save(output,format='PNG')
+user=post('/api/account/avatar',{'image':base64.b64encode(output.getvalue()).decode()})['user']
+assert client.open('http://127.0.0.1:8080'+user['avatar']).read().startswith(b'\x89PNG')
+post('/api/account/avatar',{'image':''})
+config=json.load(client.open('http://127.0.0.1:8080/api/routeros/config'))
+assert not config['configured'] and 'secret' not in config
+print('Container MFA challenge / QR / recovery / encrypted secrets / avatars / personal preferences PASS')
 """
                 result=docker('exec',gateway,'python3','-c',login)
                 print(result.stdout.strip())

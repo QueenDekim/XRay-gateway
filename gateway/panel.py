@@ -6,6 +6,8 @@ import http.server
 import json
 import secrets
 import time
+import io
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 from controller import routeros
@@ -19,11 +21,19 @@ class Panel(http.server.BaseHTTPRequestHandler):
     snapshot = None
     sessions = {}
     failures = collections.defaultdict(list)
+    pending_logins = {}
+    security_attempts = {}
     assets = Path(__file__).parent / 'web'
     defaults = []
 
     def accounts(self):
         return Accounts(self.controller.directory / 'auth.json', self.controller.lock)
+
+    def router(self):
+        from router_service import RouterService
+        with self.controller.lock:
+            if not hasattr(self.controller,'router_service'):self.controller.router_service=RouterService(self.controller)
+            return self.controller.router_service
 
     def update_session_user(self, token, user):
         if token in self.sessions:
@@ -46,13 +56,15 @@ class Panel(http.server.BaseHTTPRequestHandler):
                     data[key]=translate_message(data[key],language)
             if 'warnings' in data:
                 data['warnings']=[translate_message(value,language) for value in data['warnings']]
+            if 'logs' in data:data['logs']=[translate_message(value,language) for value in data['logs']]
         raw = data if isinstance(data, bytes) else json.dumps(data, ensure_ascii=False).encode()
         self.send_response(status)
         for key, value in {'Content-Type': content_type, 'Content-Length': str(len(raw)), 'Cache-Control': 'no-store',
             'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
-            'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"}.items():
+            'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"}.items():
             self.send_header(key, value)
         if cookie:
+            if self.headers.get('X-Forwarded-Proto','').split(',')[0].strip()=='https':cookie+='; Secure'
             self.send_header('Set-Cookie', cookie)
         self.end_headers()
         self.wfile.write(raw)
@@ -69,6 +81,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
                         self.update_session_user(token, user)
                         return token, session
                 self.sessions.pop(token, None)
+                if hasattr(self.controller,'router_service'):self.controller.router_service.logout(token)
         except (KeyError, http.cookies.CookieError):
             pass
         return None, None
@@ -81,15 +94,48 @@ class Panel(http.server.BaseHTTPRequestHandler):
         if path == '/api/version':
             self.respond(200, build_info())
             return
-        if path in ('/', '/app.js', '/theme.js', '/i18n.js', '/locales.json', '/style.css', '/favicon.png'):
+        if path.startswith('/vendor/') and re.fullmatch(r'/vendor/[a-zA-Z0-9_.-]+',path):
+            asset=self.assets/path[1:]
+            if asset.is_file() and asset.suffix in ('.js','.css'):
+                self.respond(200,asset.read_bytes(),content_type='text/javascript' if asset.suffix=='.js' else 'text/css')
+                return
+        if path in ('/', '/app.js', '/management.js', '/theme.js', '/i18n.js', '/locales.json', '/style.css', '/favicon.png'):
             filename = 'index.html' if path == '/' else path[1:]
             kind = {'html':'text/html; charset=utf-8', 'js':'text/javascript; charset=utf-8',
                     'css':'text/css; charset=utf-8', 'png':'image/png', 'json':'application/json; charset=utf-8'}[filename.rsplit('.', 1)[1]]
             self.respond(200, (self.assets / filename).read_bytes(), content_type=kind)
             return
-        _, session = self.session()
+        token, session = self.session()
         if not session:
             self.respond(401, {'error': 'Требуется вход.'})
+        elif path.startswith('/api/avatar/') and re.fullmatch(r'/api/avatar/[a-zA-Z0-9_-]{1,64}',path):
+            avatar=self.controller.directory/'avatars'/(path.rsplit('/',1)[1]+'.png')
+            self.respond(200,avatar.read_bytes(),content_type='image/png') if avatar.is_file() else self.respond(404,{'error':'Не найдено.'})
+        elif path=='/api/account/2fa/qr':
+            import qrcode
+            try:
+                uri=self.accounts().pending_factor(session['user'])
+                output=io.BytesIO();qrcode.make(uri).save(output,format='PNG')
+                self.respond(200,output.getvalue(),content_type='image/png')
+            except ValueError as exc:self.respond(400,{'error':str(exc)})
+        elif path.startswith('/api/routeros/'):
+            try:
+                router=self.router()
+                if path=='/api/routeros/config':
+                    if session['user']['role']!='admin':self.respond(403,{'error':'Требуются права администратора.'});return
+                    self.respond(200,router.public_config())
+                elif path=='/api/routeros/jobs':self.respond(200,{'jobs':router.recent(session['user'])})
+                elif path.startswith('/api/routeros/jobs/'):
+                    from urllib.parse import parse_qs
+                    cursor=parse_qs(urlsplit(self.path).query).get('cursor',['0'])[0]
+                    self.respond(200,router.job(path.rsplit('/',1)[1],session['user'],cursor))
+                elif path.startswith('/api/routeros/terminal/'):
+                    if session['user']['role']!='admin':self.respond(403,{'error':'Требуются права администратора.'});return
+                    from urllib.parse import parse_qs
+                    cursor=parse_qs(urlsplit(self.path).query).get('cursor',['0'])[0]
+                    self.respond(200,router.read_terminal(path.rsplit('/',1)[1],session['user'],token,cursor))
+                else:self.respond(404,{'error':'Не найдено.'})
+            except ValueError as exc:self.respond(400,{'error':str(exc)})
         elif path == '/api/state':
             with self.controller.lock:
                 self.respond(200, self.snapshot() | {'csrf': session['csrf'], 'username': session['username'],
@@ -106,7 +152,8 @@ class Panel(http.server.BaseHTTPRequestHandler):
                 self.respond(403, {'error': 'Недопустимый источник запроса.'})
                 return
             length = int(self.headers.get('Content-Length', '0'))
-            if not 0 < length <= 262144 or self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
+            limit=2_800_000 if urlsplit(self.path).path=='/api/account/avatar' else 262144
+            if not 0 < length <= limit or self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
                 raise ValueError('JSON required')
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
@@ -114,6 +161,9 @@ class Panel(http.server.BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             if path == '/api/login':
                 self.login(data)
+                return
+            if path=='/api/login/2fa':
+                self.login_factor(data)
                 return
             token, session = self.session()
             if not session:
@@ -125,7 +175,30 @@ class Panel(http.server.BaseHTTPRequestHandler):
             if path == '/api/logout':
                 with self.controller.lock:
                     self.sessions.pop(token, None)
+                if hasattr(self.controller,'router_service'):self.router().logout(token)
                 self.respond(200, {'ok': True}, cookie='xray_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
+            elif path.startswith('/api/account/'):
+                try:
+                    accounts=self.accounts();actor=session['user'];codes=None
+                    if path.startswith('/api/account/2fa/'):
+                        with self.controller.lock:
+                            now=time.time()
+                            attempts=[stamp for stamp in self.security_attempts.get(actor['id'],[]) if stamp>now-60]
+                            if len(attempts)>=5:
+                                self.respond(429,{'error':'Слишком много попыток. Повторите через минуту.'});return
+                            if len(self.security_attempts)>1024:self.security_attempts.clear()
+                            self.security_attempts[actor['id']]=attempts+[now]
+                    if path=='/api/account/profile':user=accounts.profile(actor,data)
+                    elif path=='/api/account/avatar':user=accounts.avatar(actor,data.get('image',''))
+                    elif path=='/api/account/2fa/setup':
+                        self.respond(200,accounts.setup_factor(actor,data.get('password')));return
+                    elif path=='/api/account/2fa/enable':user,codes=accounts.enable_factor(actor,data.get('code',''))
+                    elif path in ('/api/account/2fa/disable','/api/account/2fa/recovery'):
+                        user,codes=accounts.manage_factor(actor,data.get('password'),data.get('code',''),path.endswith('/disable'))
+                    else:self.respond(404,{'error':'Не найдено.'});return
+                    with self.controller.lock:self.update_session_user(token,user)
+                    self.respond(200,{'ok':True,'user':user}|({'recovery_codes':codes} if codes is not None else {}))
+                except ValueError as exc:self.respond(400,{'error':str(exc)})
             elif path in ('/api/profiles/add', '/api/profiles/edit', '/api/profiles/delete'):
                 try:
                     self.controller.change(path.rsplit('/', 1)[1], data, str(data.get('id', '')))
@@ -162,8 +235,27 @@ class Panel(http.server.BaseHTTPRequestHandler):
                 warnings = []
                 script = routeros(data, values, warnings=warnings)
                 self.respond(200, {'script': script, 'warnings': warnings})
+            elif path.startswith('/api/routeros/'):
+                try:
+                    router=self.router();actor=session['user']
+                    if path=='/api/routeros/apply':
+                        self.respond(202,router.start('apply',str(data.get('id','')),data.get('version',-1),actor,self.defaults))
+                    elif actor['role']!='admin':self.respond(403,{'error':'Требуются права администратора.'})
+                    elif path=='/api/routeros/config':self.respond(200,router.save(data))
+                    elif path=='/api/routeros/host-key':self.respond(200,router.scan(data))
+                    elif path=='/api/routeros/terminal/open':self.respond(200,router.open_terminal(actor,token,data.get('cols',100),data.get('rows',30)))
+                    elif path=='/api/routeros/terminal/input':
+                        router.write_terminal(str(data.get('id','')),actor,token,data.get('data',''));self.respond(200,{'ok':True})
+                    elif path=='/api/routeros/terminal/resize':
+                        router.resize_terminal(str(data.get('id','')),actor,token,data.get('cols',100),data.get('rows',30));self.respond(200,{'ok':True})
+                    elif path=='/api/routeros/terminal/close':
+                        identifier=str(data.get('id',''));router.terminal(identifier,actor,token);router.close_terminal(identifier);self.respond(200,{'ok':True})
+                    else:self.respond(404,{'error':'Не найдено.'})
+                except ValueError as exc:self.respond(400,{'error':str(exc)})
             elif path in ('/api/ip-lists/add', '/api/ip-lists/edit', '/api/ip-lists/delete'):
                 try:
+                    if path.endswith('/delete'):
+                        self.respond(202,self.router().start('delete',str(data.get('id','')),data.get('version',-1),session['user'],self.defaults));return
                     item = self.controller.change_ip_list(path.rsplit('/', 1)[1], data, self.defaults)
                 except ValueError as exc:
                     self.respond(400, {'error': str(exc)})
@@ -217,6 +309,35 @@ class Panel(http.server.BaseHTTPRequestHandler):
         if auth is None:
             self.respond(401, {'error': 'Неверный логин или пароль.'})
             return
+        if auth.get('two_factor_enabled'):
+            challenge=secrets.token_urlsafe(32)
+            with self.controller.lock:
+                for key in list(self.pending_logins):
+                    if self.pending_logins[key]['expires']<now:self.pending_logins.pop(key,None)
+                if len(self.pending_logins)>=128:self.pending_logins.pop(next(iter(self.pending_logins)))
+                self.pending_logins[challenge]={'user_id':auth['id'],'revision':auth['revision'],'expires':now+180,'attempts':0,'ip':ip}
+            self.respond(200,{'requires_2fa':True,'challenge':challenge})
+            return
+        self.issue_session(auth)
+
+    def login_factor(self,data):
+        now,ip=time.time(),self.client_address[0]
+        with self.controller.lock:
+            challenge=str(data.get('challenge',''));pending=self.pending_logins.get(challenge)
+            if not pending or pending['expires']<=now or pending['attempts']>=5 or pending['ip']!=ip:
+                self.pending_logins.pop(challenge,None)
+                self.respond(401,{'error':'Вход истёк. Введите логин и пароль заново.'});return
+            pending['attempts']+=1
+            accounts=self.accounts()
+            if not accounts.verify_factor(pending['user_id'],pending['revision'],data.get('code','')):
+                self.respond(401,{'error':'Неверный или использованный код 2FA.'});return
+            auth=accounts.session_user(pending['user_id'],pending['revision'])
+            self.pending_logins.pop(challenge,None)
+            if not auth:self.respond(401,{'error':'Требуется повторный вход.'});return
+        self.issue_session(auth)
+
+    def issue_session(self,auth):
+        now,ip=time.time(),self.client_address[0]
         token = secrets.token_urlsafe(32)
         with self.controller.lock:
             self.failures.pop(ip, None)

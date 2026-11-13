@@ -826,3 +826,59 @@ main { min-height: calc(100vh - 64px); }
   .design-preview { grid-template-columns: 12px minmax(0, 1fr); gap: 4px; }
   .design-name { font-size: 12px; }
 }
+
+/* Shared data rows; themes retain their typography, chrome and charts. */
+:root[data-design] .profile-cards, :root[data-design] .ip-list-grid { display: block; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+:root[data-design] .profile-card { display: grid; grid-template-columns: minmax(200px,.8fr) minmax(0,1.6fr); gap: 16px 24px; padding: 16px; margin: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; background: var(--surface); }
+:root[data-design] .profile-card:last-child, :root[data-design] .ip-list-card:last-child { border-bottom: 0; }
+:root[data-design] .profile-card.selected { padding: 16px; border-left: 0; box-shadow: inset 2px 0 var(--accent); }
+:root[data-design] .profile-card .card-top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+:root[data-design] .profile-card h3, :root[data-design] .profile-card.selected h3 { font-size: 16px; line-height: 1.5; margin: 0; padding: 0; border: 0; }
+:root[data-design] .profile-card .endpoint { margin: 4px 0 0; font-size: 12px; overflow-wrap: anywhere; }
+:root[data-design] .card-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 16px; margin: 0; padding: 0; border: 0; background: transparent; align-items: center; }
+:root[data-design] .card-stats > div:nth-child(n) { border: 0; padding: 0; background: transparent; }
+:root[data-design] .card-stats b { font-size: 16px; line-height: 1.5; }
+:root[data-design] .card-stats small { font-size: 12px; margin-bottom: 4px; }
+:root[data-design] .ip-list-card { display: grid; grid-template-columns: minmax(180px,.7fr) minmax(100px,1fr) auto; gap: 16px; align-items: center; padding: 16px; margin: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: var(--surface); box-shadow: none; }
+:root[data-design] .ip-list-card > .card-top { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 4px 12px; padding: 0; border: 0; background: transparent; }
+:root[data-design] .ip-list-card h2 { margin: 0; font-size: 16px; line-height: 1.5; }
+:root[data-design] .ip-preview { display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; margin: 0; padding: 0; min-height: 0; border: 0; border-radius: 0; background: transparent; font-size: 12px; line-height: 1.6; color: var(--secondary); }
+:root[data-design] .ip-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; margin: 0; padding: 0; border: 0; background: transparent; }
+:root[data-design] .ip-actions button { flex: 0 0 auto; min-height: 36px; padding: 8px 12px; border: 0; background: transparent; }
+:root[data-design="titan"][data-theme="light"] { --paper: #e8eefb; --surface: #f1f5fe; --raised: #dce6f9; --header: #edf2fd; --table-head: #e3ebfa; --line: #c8d5ed; }
+:root[data-design="paper"][data-theme="light"] { --paper: #f5e7e1; --surface: #fbf1eb; --raised: #ecd8cf; --header: #f5e7e1; --sidebar: #eeddd5; --table-head: #eeddd5; --line: #dfc4b7; }
+:root[data-design="console"][data-theme="light"] { --paper: #e4efe8; --surface: #eff6f1; --raised: #d4e5da; --header: #e9f3ed; --sidebar: #dcebe1; --table-head: #dcebe1; --line: #bed5c7; }
+:root[data-design="contour"][data-theme="light"] { --paper: #f6e9df; --surface: #fcf3ea; --raised: #eed9c8; --header: #faefe5; --sidebar: #f0e1d5; --table-head: #f2e3d7; --line: #e1c9b5; --side-muted: #5d5a57; }
+.account-button { display: inline-flex; align-items: center; gap: 8px; padding: 4px; background: transparent; color: var(--ink); border-radius: var(--radius-control); }
+.account-button:hover { background: var(--raised); }
+.avatar { display: inline-flex; flex: 0 0 32px; width: 32px; height: 32px; align-items: center; justify-content: center; overflow: hidden; border-radius: 50%; background: var(--raised); font: 12px/1 var(--font-ui); }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-large { flex-basis: 80px; width: 80px; height: 80px; font-size: 24px; }
+.avatar-editor { display: flex; gap: 24px; align-items: center; margin: 24px 0; }
+.account-form { max-width: 680px; }
+#factorQr { display: block; max-width: 100%; margin: 20px 0; }
+.factor-secret { display: block; overflow-wrap: anywhere; margin: 16px 0; font-family: var(--font-number); }
+#recoveryCodes { font-family: var(--font-number); margin: 16px 0; }
+.wide-dialog { width: min(1100px,94vw); max-width: 94vw; }
+.operation-log { min-height: 240px; max-height: 60vh; overflow: auto; background: var(--paper); border: 1px solid var(--line); padding: 16px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-number); }
+.operation-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.operation-row small { display: block; color: var(--secondary); }
+.terminal-panel { background: #111820; color: #e4eaf2; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.terminal-heading { display: flex; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid #334050; font: 12px/1.5 var(--font-number); }
+#sshTerminal { height: min(64vh,640px); min-height: 360px; padding: 12px; }
+#loginFactor { margin-top: 16px; }
+@media (max-width: 1100px) {
+ :root[data-design] .profile-card { grid-template-columns: minmax(0,1fr); }
+ :root[data-design] .ip-list-card { grid-template-columns: minmax(0,1fr) auto; }
+ :root[data-design] .ip-preview { grid-row: 2; grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+ :root[data-design] .card-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ :root[data-design] .ip-list-card { grid-template-columns: minmax(0,1fr); }
+ :root[data-design] .ip-preview { grid-row: auto; grid-column: auto; }
+ :root[data-design] .ip-actions { justify-content: flex-start; }
+ :root[data-design] .ip-actions button { min-height: 44px; }
+ .account-button #username { max-width: 112px; overflow: hidden; text-overflow: ellipsis; }
+ .avatar-editor { align-items: flex-start; flex-direction: column; gap: 16px; }
+ #sshTerminal { min-height: 320px; padding: 8px; }
+}

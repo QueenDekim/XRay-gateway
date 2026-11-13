@@ -358,7 +358,14 @@ class PanelTest(unittest.TestCase):
         self.assertIn('comment="XRAY-GW-DNS updated"', renamed['script'])
         self.assertNotIn('forged', renamed['script'])
         self.assertEqual(self.request('/api/ip-lists/edit', item, headers)[0], 400)
-        self.assertEqual(self.request('/api/ip-lists/delete', {'id': item['id'], 'version': 2}, headers)[0], 200)
+        from router_service import RouterService
+        import time
+        service=RouterService(self.c);service.public_config=lambda:{'configured':True};service.import_script=lambda script,log:None;self.c.router_service=service
+        status,job,_=self.request('/api/ip-lists/delete', {'id': item['id'], 'version': 2}, headers)
+        self.assertEqual(status,202)
+        until=time.monotonic()+2
+        while time.monotonic()<until and self.c.ip_lists():time.sleep(.01)
+        self.assertEqual(service.job(job['id'],{'id':'test','role':'admin'})['status'],'done')
         self.assertEqual(self.request('/api/routeros', {'list_id': item['id']}, headers)[0], 400)
 
     def test_routeros_lists_have_disjoint_cleanup_and_allow_shared_ip(self):

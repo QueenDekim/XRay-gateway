@@ -7,6 +7,8 @@ ARG SOURCE_REVISION
 RUN python scripts/build_version.py --revision "$SOURCE_REVISION" --output /build-info.json
 FROM python:3.13-alpine3.22
 RUN apk add --no-cache nftables iproute2 ca-certificates curl
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --only-binary=:all: -r /tmp/requirements.txt
 WORKDIR /app
 COPY --from=xray /usr/local/bin/xray /usr/local/bin/xray
 COPY gateway/ /app/

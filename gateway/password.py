@@ -29,6 +29,8 @@ def main():
             user = {'id':'user_' + uuid.uuid4().hex[:16], 'revision':0, 'created_at':time.time()}
             data['users'].append(user)
         user.update(hashed, username=username, role='admin', revision=user['revision'] + 1)
+        if user.get('totp_secret') and input('Disable 2FA for this account? [y/N]: ').strip().lower()=='y':
+            for key in ('totp_secret','totp_last_step','recovery_hashes','totp_pending'):user.pop(key,None)
         atomic_json(path, data)
     print('Administrator updated. Its earlier sessions are revoked; other accounts are preserved.')
 

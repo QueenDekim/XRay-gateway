@@ -19,6 +19,10 @@ docker compose start gateway xray
 
 Use the extra `-f compose.proxy.yaml` option if your deployment includes it.
 
+Include hidden files. `config/runtime/.encryption-key` decrypts saved RouterOS
+credentials and 2FA secrets; restore it together with `routeros.json` and
+`auth.json`. Keep this backup private. Avatars live in `config/runtime/avatars/`.
+
 ## Update
 
 Read the changelog and back up first. Pull the intended release, validate the
@@ -45,6 +49,10 @@ docker compose exec gateway python3 /app/password.py
 Enter a login and a new password. The command creates or updates that
 administrator, revokes its earlier sessions and preserves other accounts. It
 does not use a password supplied on the command line.
+
+For an account with 2FA, answer the additional prompt to disable it if you lost
+the authenticator and recovery codes. The command preserves 2FA unless you
+confirm that prompt. Re-enroll the account after regaining access.
 
 ## Health checks
 

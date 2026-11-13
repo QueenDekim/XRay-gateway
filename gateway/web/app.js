@@ -9,10 +9,10 @@ const fmt = (n, rate = false) => {n = Number(n || 0); const units = ['Б','Ки�
 const duration = n => {n=Math.max(0,Math.floor(n));return n>=86400?`${Math.floor(n/86400)} ${t('д')} ${Math.floor(n%86400/3600)} ${t('ч')}`:n>=3600?`${Math.floor(n/3600)} ${t('ч')} ${Math.floor(n%3600/60)} ${t('м')}`:`${Math.floor(n/60)} ${t('м')} ${n%60} ${t('с')}`;};
 const esc = x => String(x ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notice(text){message('notice',text);$('notice').hidden=!text;}
-async function api(path, data){const response=await fetch(path,{method:data?'POST':'GET',headers:{'Accept-Language':window.I18n.language(),...(data?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{})},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(65000)});const body=await response.json();if(!response.ok){if(response.status===401 && path!=='/api/login'){showLogin();}throw new Error(t(body.error || 'Ошибка запроса'));}return body;}
-function showLogin(){$('loginView').hidden=false;$('appView').hidden=true;state=null;csrf='';for(const d of document.querySelectorAll('dialog[open]'))d.close();for(const id of ['passwordForm','userForm'])$(id).reset();for(const id of ['routingSettingsForm','probeSettingsForm','routerForm']){delete $(id).dataset.revision;delete $(id).dataset.dirty;}}
+async function api(path, data){const response=await fetch(path,{method:data?'POST':'GET',headers:{'Accept-Language':window.I18n.language(),...(data?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{})},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(65000)});const body=await response.json();if(!response.ok){if(response.status===401 && !path.startsWith('/api/login')){showLogin();}throw new Error(t(body.error || 'Ошибка запроса'));}return body;}
+function showLogin(){window.Management?.clear();$('loginView').hidden=false;$('appView').hidden=true;state=null;csrf='';for(const d of document.querySelectorAll('dialog[open]'))d.close();for(const id of ['passwordForm','userForm'])$(id).reset();for(const id of ['routingSettingsForm','probeSettingsForm','routerForm']){delete $(id).dataset.revision;delete $(id).dataset.dirty;}}
 async function refresh(){try{const data=await api('/api/state');state=data;csrf=data.csrf;$('loginView').hidden=true;$('appView').hidden=false;render();}catch(e){if(state)notice(e.message);}}
-function selectPage(value){page=value;for(const name of ['overview','profiles','iplists','routeros','settings'])$(name+'Page').hidden=name!==value;document.querySelectorAll('nav [data-page], .account-actions [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===value));$('settingsToggle').setAttribute('aria-pressed',String(value==='settings'));$('pageName').textContent=t({overview:'Обзор',profiles:'Профили',iplists:'IP-списки',routeros:'RouterOS',settings:'Настройки'}[value]);}
+function selectPage(value){if(value==='settings'&&state?.user?.role!=='admin')value='account';page=value;for(const name of ['overview','profiles','iplists','routeros','settings','account'])$(name+'Page').hidden=name!==value;document.querySelectorAll('nav [data-page], .account-actions [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===value));$('settingsToggle').setAttribute('aria-pressed',String(value==='settings'));$('pageName').textContent=t({overview:'Обзор',profiles:'Профили',iplists:'IP-списки',routeros:'RouterOS',settings:'Настройки',account:'Моя учётная запись'}[value]);window.Management?.page(value);}
 function status(p){if(!p.enabled)return ['Выключен','muted-state'];if(!p.health)return ['Проверка','pending'];if(state.checks[p.id]?.healthy)return [state.selected===p.id?'Активен':'Доступен',state.selected===p.id?'is-active':'ready'];return ['Недоступен','bad'];}
 function badge(p){const [label,cls]=status(p);return `<span class="badge ${cls}">${t(label)}</span>`;}
 function profileTransport(p){const name=({tcp:'RAW/TCP',raw:'RAW/TCP',xhttp:'XHTTP',splithttp:'XHTTP',ws:'WebSocket',websocket:'WebSocket',grpc:'gRPC',httpupgrade:'HTTPUpgrade',kcp:'mKCP',mkcp:'mKCP',hysteria:'Hysteria',xdrive:'XDrive'})[p.transport]||p.transport;return name+(p.security?' / '+(p.security==='none'?t('без TLS'):p.security==='tls'?'TLS':p.security==='reality'?'REALITY':p.security):'');}
@@ -56,14 +56,14 @@ function renderTraffic(){
  $('trafficChartDescription').textContent=history.length?t('{0} измерений. Входящий и исходящий трафик, байт в секунду. Максимум шкалы {1}. Последнее измерение: получено {2}, отправлено {3}',history.length,fmt(peak,true),fmt(history.at(-1).downlink_bps,true),fmt(history.at(-1).uplink_bps,true)):t('Ожидание измерений Xray');
 }
 document.addEventListener('appearancechange',()=>{if(state)renderTraffic();});
-function render(){const s=state,totals=s.totals;renderIpLists();renderSettings();notice(s.stats_error || s.last_error || '');$('username').textContent=s.username;$('coreStatus').textContent=t(s.ready?'Xray работает':'Xray недоступен');$('coreStatus').classList.toggle('bad',!s.ready);$('totalDown').textContent=fmt(totals.downlink);$('totalUp').textContent=fmt(totals.uplink);$('downRate').textContent=fmt(totals.downlink_bps,true)+' '+window.I18n.t('сейчас');$('upRate').textContent=fmt(totals.uplink_bps,true)+' '+window.I18n.t('сейчас');$('uptime').textContent=duration(s.uptime);$('profileCount').textContent=window.I18n.t('{0} включено / {1} профилей',s.profiles.filter(p=>p.enabled).length,s.profiles.length);$('selectedName').textContent=s.profiles.find(p=>p.id===s.selected)?.name || 'Direct';$('routeSince').textContent=window.I18n.t('Выбран {0} назад',duration(Date.now()/1000-s.since));$('updated').textContent=window.I18n.t('Обновлено {0}',new Date().toLocaleTimeString(locale()));
+function render(){const s=state,totals=s.totals;renderIpLists();renderSettings();notice(s.stats_error || s.last_error || '');$('username').textContent=s.user?.display_name||s.username;$('coreStatus').textContent=t(s.ready?'Xray работает':'Xray недоступен');$('coreStatus').classList.toggle('bad',!s.ready);$('totalDown').textContent=fmt(totals.downlink);$('totalUp').textContent=fmt(totals.uplink);$('downRate').textContent=fmt(totals.downlink_bps,true)+' '+window.I18n.t('сейчас');$('upRate').textContent=fmt(totals.uplink_bps,true)+' '+window.I18n.t('сейчас');$('uptime').textContent=duration(s.uptime);$('profileCount').textContent=window.I18n.t('{0} включено / {1} профилей',s.profiles.filter(p=>p.enabled).length,s.profiles.length);$('selectedName').textContent=s.profiles.find(p=>p.id===s.selected)?.name || 'Direct';$('routeSince').textContent=window.I18n.t('Выбран {0} назад',duration(Date.now()/1000-s.since));$('updated').textContent=window.I18n.t('Обновлено {0}',new Date().toLocaleTimeString(locale()));
  $('overviewProfiles').innerHTML=s.profiles.length?s.profiles.map(p=>`<article class="profile-card ${p.id===s.selected?'selected':''}"><div class="profile-identity"><div class="card-top"><h3>${esc(p.name)}</h3>${badge(p)}</div><p class="endpoint">${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</p></div><div class="card-stats"><div><small>${window.I18n.t('Задержка проверки')}</small><b>${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</b></div><div><small>${window.I18n.t('Успешных проверок')}</small><b>${p.stats.checks?((p.stats.successful_checks||0)/p.stats.checks*100).toFixed(1)+'%':'—'}</b></div><div><small>${window.I18n.t('Получено')}</small><b>${fmt(p.stats.downlink)}</b></div><div><small>${window.I18n.t('Отправлено')}</small><b>${fmt(p.stats.uplink)}</b></div></div></article>`).join(''):`<p class="muted">${window.I18n.t('Профилей нет')}</p>`;
  $('profileRows').innerHTML=s.profiles.map(p=>`<tr><td><b>${esc(p.name)}</b><small>${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</small></td><td>${badge(p)}</td><td class="mono">${p.priority}</td><td class="mono">${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</td><td class="mono">↓ ${fmt(p.stats.downlink)}<small>↑ ${fmt(p.stats.uplink)}</small></td><td class="mono">${p.stats.successful_checks||0} / ${p.stats.checks||0}</td><td><button data-edit="${p.id}">${window.I18n.t('Изменить')}</button><button class="danger" data-delete="${p.id}">${window.I18n.t('Удалить')}</button></td></tr>`).join('');$('directTraffic').textContent=`↓ ${fmt(s.direct.downlink)} / ↑ ${fmt(s.direct.uplink)}`;
- renderTraffic();
+ renderTraffic();window.Management?.render();
 }
 function editProfile(id){editing=id;editRevision=state.revision;const p=state.profiles.find(p=>p.id===id),f=$('profileForm');f.reset();f.elements.name.value=p?.name||'';f.elements.priority.value=p?.priority||10;f.elements.enabled.checked=p?.enabled??true;f.elements.uri.required=!p;$('dialogTitle').textContent=t(p?'Редактирование профиля':'Новый профиль');message('profileError','');$('profileDialog').showModal();}
 document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.page)selectPage(button.dataset.page);if(button.dataset.edit)editProfile(button.dataset.edit);if(button.dataset.delete){const p=state.profiles.find(p=>p.id===button.dataset.delete);if(!confirm(t('Удалить профиль «{0}»? Xray будет перезапущен, текущие соединения прервутся.',p.name)))return;button.disabled=true;try{await api('/api/profiles/delete',{id:p.id,revision:state.revision});await refresh();}catch(e){notice(e.message);}finally{button.disabled=false;}}});
-$('loginForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;message('loginError','');try{await api('/api/login',Object.fromEntries(new FormData(e.target)));e.target.elements.password.value='';await refresh();}catch(error){message('loginError',error.message);}finally{b.disabled=false;}});
+$('loginForm').addEventListener('submit',event=>{event.preventDefault();window.Management.login(event);});
 $('logout').onclick=async()=>{try{await api('/api/logout',{});showLogin();}catch(e){notice(e.message);}};
 $('addProfile').onclick=()=>editProfile(null);$('closeDialog').onclick=()=>$('profileDialog').close();
 $('resetProfileChecks').onclick=async()=>{const button=$('resetProfileChecks');button.disabled=true;try{await api('/api/profiles/reset-checks',{});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}};
@@ -74,7 +74,7 @@ let editingList = null, editingListVersion = 0, listOptions = '';
 function listCount(n){if(window.I18n.language()==='en')return n+' '+(n===1?'entry':'entries');const mod=n%100;return n+' '+(mod>=11&&mod<=14?'записей':n%10===1?'запись':n%10>=2&&n%10<=4?'записи':'записей');}
 function renderIpLists(){
  const lists=state.ip_lists||[];
- $('ipListCards').innerHTML=lists.length?lists.map(item=>`<article class="ip-list-card"><div class="card-top"><h2>${esc(item.name)}</h2><span class="list-count mono">${listCount(item.addresses.length)}</span></div><div class="ip-preview mono">${item.addresses.slice(0,5).map(esc).join('<br>')||t('Пустой список')}</div><div class="ip-actions"><button class="secondary" data-list-edit="${item.id}">${t('Изменить')}</button><button class="text-button" data-list-route="${item.id}">${t('В RouterOS')}</button><button class="text-button danger" data-list-delete="${item.id}">${t('Удалить')}</button></div></article>`).join(''):`<p class="muted">${t('Списков нет')}</p>`;
+ $('ipListCards').innerHTML=lists.length?lists.map(item=>`<article class="ip-list-card"><div class="card-top"><h2>${esc(item.name)}</h2><span class="list-count mono">${listCount(item.addresses.length)}</span></div><div class="ip-preview mono">${item.addresses.slice(0,3).map(esc).join(', ')||t('Пустой список')}</div><div class="ip-actions"><button class="secondary" data-list-edit="${item.id}">${t('Изменить')}</button><button class="text-button" data-list-route="${item.id}">${t('В RouterOS')}</button><button class="text-button danger" data-list-delete="${item.id}">${t('Удалить')}</button></div></article>`).join(''):`<p class="muted">${t('Списков нет')}</p>`;
  const options=`<option value="">${window.I18n.t('Вручную')}</option>`+lists.map(item=>`<option value="${item.id}">${esc(item.name)} (${item.addresses.length})</option>`).join('');
  if(options!==listOptions){const previous=$('routerList').value,first=!listOptions;$('routerList').innerHTML=options;if(lists.some(item=>item.id===previous))$('routerList').value=previous;else if(first&&lists.length)$('routerList').value=lists[0].id;listOptions=options;}
  $('manualDestinations').hidden=Boolean($('routerList').value);
@@ -99,8 +99,8 @@ $('routerList').onchange=()=>{$('manualDestinations').hidden=Boolean($('routerLi
 document.addEventListener('click',async event=>{
  const button=event.target.closest('button');if(!button)return;
  if(button.dataset.listEdit)editIpList(button.dataset.listEdit);
- if(button.dataset.listRoute){$('routerList').value=button.dataset.listRoute;$('manualDestinations').hidden=true;selectPage('routeros');}
- if(button.dataset.listDelete){const item=state.ip_lists.find(item=>item.id===button.dataset.listDelete);if(!confirm(t('Удалить список «{0}»?',item.name)))return;button.disabled=true;try{await api('/api/ip-lists/delete',{id:item.id,version:item.version});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}}
+ if(button.dataset.listRoute)await window.Management.startJob('apply',button.dataset.listRoute);
+ if(button.dataset.listDelete)await window.Management.startJob('delete',button.dataset.listDelete);
 });
 $('ipListForm').addEventListener('submit',async event=>{
  event.preventDefault();const button=event.submitter;button.disabled=true;message('ipListError','');
@@ -114,11 +114,11 @@ $('copyIps').onclick=async()=>{try{await copyText($('ipAddresses').value);messag
 
 const routingKeys = ['gateway','host','source','interface','local_networks'];
 const probeKeys = ['probe_url','check_interval','fail_threshold','recover_threshold'];
-const settingsTabs=['appearance','routing','probes','users','security'];
-let settingsTab='appearance';
-function allowedSettingsTabs(){return settingsTabs.filter(name=>state?.user?.role==='admin'||['appearance','security'].includes(name));}
+const settingsTabs=['routing','probes','router','users'];
+let settingsTab='routing';
+function allowedSettingsTabs(){return state?.user?.role==='admin'?settingsTabs:[];}
 function selectSettingsTab(name,focus=false){
- const allowed=allowedSettingsTabs();settingsTab=allowed.includes(name)?name:'appearance';
+ const allowed=allowedSettingsTabs();settingsTab=allowed.includes(name)?name:'routing';
  for(const key of settingsTabs){const button=$('settingsTab-'+key);button.hidden=!allowed.includes(key);button.setAttribute('aria-selected',String(key===settingsTab));button.tabIndex=key===settingsTab?0:-1;$('settingsPanel-'+key).hidden=!allowed.includes(key)||key!==settingsTab;}
  if(focus)$('settingsTab-'+settingsTab).focus();
 }
@@ -126,7 +126,7 @@ $('settingsTabs').addEventListener('click',event=>{const button=event.target.clo
 $('settingsTabs').addEventListener('keydown',event=>{
  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
  const button=event.target.closest('button');if(!button?.dataset.settingsTab)return;
- const allowed=allowedSettingsTabs(),index=allowed.indexOf(button.dataset.settingsTab);
+ const allowed=allowedSettingsTabs(),index=allowed.indexOf(button.dataset.settingsTab);if(!allowed.length)return;
  const next=event.key==='Home'?0:event.key==='End'?allowed.length-1:(index+(event.key==='ArrowRight'?1:-1)+allowed.length)%allowed.length;
  event.preventDefault();selectSettingsTab(allowed[next],true);
 });
@@ -136,7 +136,7 @@ function fillSettingsForm(id, keys, settings){
  for(const key of keys)form.elements.namedItem(key).value=settings[key];form.dataset.revision=String(settings.revision);
 }
 function renderSettings(){
- const admin=state.user?.role==='admin';
+ const admin=state.user?.role==='admin';$('settingsToggle').hidden=!admin;
  selectSettingsTab(settingsTab);
  for(const id of ['routingSettingsForm','probeSettingsForm','usersSettings'])$(id).hidden=!admin;
  fillSettingsForm('routingSettingsForm',routingKeys,state.settings);

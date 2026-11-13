@@ -22,6 +22,7 @@
     apply(true);
   };
   apply();
+  window.Appearance={set(values){if(designs.includes(values.design))design=values.design;if(['light','dark'].includes(values.colorScheme))theme=values.colorScheme;save();},get(){return{design,colorScheme:theme};}};
   document.addEventListener('languagechange', () => apply());
   document.addEventListener('DOMContentLoaded', () => {
     apply();

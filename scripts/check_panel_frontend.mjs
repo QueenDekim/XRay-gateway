@@ -32,13 +32,13 @@ const nodes = Object.fromEntries(ids.map(id => [id, {
   focus() { this.focused = true; },
   reset() { for(const v of Object.values(this.elements))if(v && typeof v==='object')v.value=''; },
   showModal() { this.open=true; }, close() { this.open=false; },
-  elements: { namedItem(name) { return this[name] ||= { value:'', checked:false }; } },
+  elements: { namedItem(name) { return this[name] ||= { value:'', checked:false, focus(){} }; } },
 }]));
 const navButtons = [...html.match(/<nav>[\s\S]*?<\/nav>/)[0].matchAll(/data-page="([^"]+)"/g)].map(m => ({
   dataset: { page: m[1] }, classList: { values: new Set(), toggle(name, enabled) { enabled ? this.values.add(name) : this.values.delete(name); } },
 }));
 nodes.settingsToggle.dataset.page = 'settings';
-const settingsNames=['appearance','routing','probes','users','security'];
+const settingsNames=['routing','probes','router','users'];
 for(const name of settingsNames)nodes['settingsTab-'+name].dataset.settingsTab=name;
 const appearanceInputs=[...html.matchAll(/<input type="radio" name="(design|colorScheme)" value="([^"]+)"[^>]*>/g)].map(m=>({name:m[1],value:m[2],checked:false}));
 const decode=value=>value.replaceAll('&quot;','"').replaceAll('&amp;','&').replaceAll('&lt;','<').replaceAll('&gt;','>');
@@ -176,7 +176,7 @@ assert.equal(nodes.settingsToggle.attributes['aria-pressed'], 'true');
 assert.ok(nodes.settingsToggle.classList.values.has('active'));
 assert.ok(navButtons.every(b => !b.classList.values.has('active')));
 assert.equal(nodes.pageName.textContent, 'Настройки');
-assert.equal(nodes['settingsPanel-appearance'].hidden,false);
+assert.equal(nodes['settingsPanel-routing'].hidden,false);
 for(const name of settingsNames){
  nodes.settingsTabs.listeners.click({target:{closest:()=>nodes['settingsTab-'+name]}});
  assert.equal(nodes['settingsPanel-'+name].hidden,false);
@@ -185,9 +185,9 @@ for(const name of settingsNames){
  assert.equal(settingsNames.filter(key=>!nodes['settingsPanel-'+key].hidden).length,1);
 }
 let prevented=false;
-nodes.settingsTabs.listeners.keydown({key:'Home',target:{closest:()=>nodes['settingsTab-security']},preventDefault(){prevented=true;}});
-assert.ok(prevented);assert.equal(nodes['settingsPanel-appearance'].hidden,false);
-assert.ok(nodes['settingsTab-appearance'].focused);
+nodes.settingsTabs.listeners.keydown({key:'Home',target:{closest:()=>nodes['settingsTab-users']},preventDefault(){prevented=true;}});
+assert.ok(prevented);assert.equal(nodes['settingsPanel-routing'].hidden,false);
+assert.ok(nodes['settingsTab-routing'].focused);
 vm.runInContext("selectPage('overview');", context);
 assert.equal(nodes.settingsToggle.attributes['aria-pressed'], 'false');
 assert.ok(!nodes.settingsToggle.classList.values.has('active'));
@@ -220,10 +220,10 @@ assert.equal(nodes.userRows.innerHTML,'');
 assert.equal(nodes['settingsTab-routing'].hidden,true);
 assert.equal(nodes['settingsTab-probes'].hidden,true);
 assert.equal(nodes['settingsTab-users'].hidden,true);
-vm.runInContext("selectSettingsTab('routing');",context);
-assert.equal(nodes['settingsPanel-appearance'].hidden,false);
-nodes.settingsTabs.listeners.keydown({key:'ArrowRight',target:{closest:()=>nodes['settingsTab-appearance']},preventDefault(){}});
-assert.equal(nodes['settingsPanel-security'].hidden,false);
+vm.runInContext("selectSettingsTab('routing'); selectPage('settings');",context);
+assert.equal(nodes.accountPage.hidden,false);
+assert.equal(nodes.settingsToggle.hidden,true);
+for(const key of settingsNames)assert.equal(nodes['settingsPanel-'+key].hidden,true);
 vm.runInContext("state.user.role='admin'; state.history=[{at:1,uplink_bps:0,downlink_bps:0}]; renderTraffic();",context);
 assert.equal((nodes.trafficMarkers.innerHTML.match(/<circle /g)||[]).length,2);
 assert.equal(nodes.downArea.attributes.d,'');
@@ -288,4 +288,72 @@ assert.ok(nodes.profileRows.innerHTML.includes('0 / 0'));
 context.window.I18n.setLanguage('en');
 assert.equal(nodes.resetProfileChecks.textContent,'Reset check counters');
 assert.equal(vm.runInContext("profileTransport({transport:'ws',security:'none'})",context),'WebSocket / No TLS');
+// Account, MFA and direct RouterOS controls share the real page and application state.
+for(const node of Object.values(nodes)){
+ node.getAttribute=function(key){return this.attributes[key]??null;};
+ node.removeAttribute=function(key){delete this.attributes[key];};
+}
+for(const form of html.matchAll(/<form\b[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/form>/g)){
+ for(const field of form[2].matchAll(/<(?:input|textarea|select)\b[^>]*name="([^"]+)"/g))nodes[form[1]].elements.namedItem(field[1]);
+}
+let timer=0;const pendingTimers=new Map(),calls=[];
+context.setTimeout=fn=>{pendingTimers.set(++timer,fn);return timer;};context.clearTimeout=id=>pendingTimers.delete(id);
+context.confirm=()=>true;
+context.atob=value=>Buffer.from(value,'base64').toString('binary');context.btoa=value=>Buffer.from(value,'binary').toString('base64');
+context.ResizeObserver=class{observe(){}};
+context.window.Terminal=class{
+ cols=100;rows=30;output=[];reset(){}loadAddon(){}open(){}focus(){}onData(fn){this.send=fn;context.testTerminal=this;}write(data){this.output.push(Buffer.from(data).toString());}
+};context.window.FitAddon={FitAddon:class{fit(){}}};
+let loginResponse={requires_2fa:true,challenge:'test-challenge'},refreshes=0;
+context.mockRefresh=async()=>{refreshes++;};
+context.mockAPI=async(url,data)=>{
+ calls.push({url,data});
+ if(url==='/api/routeros/config')return{host:'192.168.50.1',port:22,username:'panel',auth:'key',fingerprint:'SHA256:pin',configured:true};
+ if(url.startsWith('/api/login')){if(loginResponse instanceof Error)throw loginResponse;return loginResponse;}
+ if(url==='/api/routeros/apply'||url==='/api/ip-lists/delete')return{id:'job-test'};
+ if(url.startsWith('/api/routeros/jobs/'))return{id:'job-test',name:'Test list',status:'done',logs:['Applied'],cursor:1};
+ if(url==='/api/routeros/jobs')return{jobs:[]};
+ if(url==='/api/routeros/terminal/open')return{id:'terminal-test'};
+ if(url.startsWith('/api/routeros/terminal/terminal-test'))return{data:Buffer.from('[panel@router] > ').toString('base64'),cursor:18,closed:false};
+ return{ok:true};
+};
+vm.runInContext('api=mockAPI; refresh=mockRefresh;',context);
+vm.runInContext(fs.readFileSync(path.join(root,'gateway/web/management.js'),'utf8'),context);
+await new Promise(resolve=>setImmediate(resolve));
+assert.equal(nodes.routerConnectionForm.elements.host.value,'192.168.50.1');
+assert.equal(nodes.headerInitials.textContent,'A');
+nodes.accountToggle.onclick();assert.equal(nodes.accountPage.hidden,false);
+nodes.accountProfileForm.dataset.dirty='1';nodes.accountProfileForm.elements.display_name.value='Unsaved name';
+context.window.Management.render();assert.equal(nodes.accountProfileForm.elements.display_name.value,'Unsaved name');
+const loginEvent={target:nodes.loginForm,submitter:{disabled:false}};
+nodes.loginForm.testData={username:'admin',password:'private-test-password'};
+await context.window.Management.login(loginEvent);
+assert.equal(nodes.loginFactor.hidden,false);assert.equal(nodes.loginCode.required,true);
+assert.equal(nodes.loginForm.elements.password.disabled,true);assert.equal(nodes.loginForm.elements.password.value,'');
+loginResponse=new Error('Invalid code');await context.window.Management.login(loginEvent);
+assert.equal(nodes.loginFactor.hidden,false);assert.equal(nodes.loginError.textContent,'Invalid code');
+assert.equal(calls.at(-1).url,'/api/login/2fa');
+nodes.loginBack.onclick();assert.equal(nodes.loginCode.required,false);assert.equal(nodes.loginForm.elements.password.disabled,false);
+loginResponse={requires_2fa:true,challenge:'test-challenge'};await context.window.Management.login(loginEvent);
+loginResponse={ok:true};nodes.loginCode.value='123456';await context.window.Management.login(loginEvent);
+assert.equal(nodes.loginFactor.hidden,true);assert.equal(nodes.loginCode.required,false);assert.ok(refreshes>0);
+assert.equal(calls.at(-1).data.challenge,'test-challenge');
+const count=calls.length;context.confirm=()=>false;
+await context.window.Management.startJob('apply','project');assert.equal(calls.length,count);
+context.confirm=()=>true;await context.window.Management.startJob('apply','project');
+await new Promise(resolve=>setImmediate(resolve));
+assert.ok(calls.some(v=>v.url==='/api/routeros/apply'&&v.data.id==='project'&&v.data.version===1));
+assert.equal(nodes.routerJobLog.textContent,'Applied');assert.equal(nodes.routerJobDialog.open,true);
+await context.window.Management.startJob('delete','project');await new Promise(resolve=>setImmediate(resolve));
+assert.ok(calls.some(v=>v.url==='/api/ip-lists/delete'&&v.data.id==='project'));
+await nodes.terminalConnect.onclick();await new Promise(resolve=>setImmediate(resolve));
+assert.equal(context.testTerminal.output.at(-1),'[panel@router] > ');
+context.testTerminal.send('\u0003/system identity print\r');await new Promise(resolve=>setImmediate(resolve));
+assert.ok(calls.some(v=>v.url==='/api/routeros/terminal/input'&&v.data.data.startsWith('\u0003')));
+await nodes.terminalDisconnect.onclick();assert.ok(calls.some(v=>v.url==='/api/routeros/terminal/close'));
+nodes.recoveryCodes.value='secret-recovery';nodes.routerConnectionForm.elements.private_key.value='secret-key';
+context.window.Management.clear();
+assert.equal(nodes.recoveryCodes.value,'');assert.equal(nodes.routerConnectionForm.elements.private_key.value,'');
+assert.ok(![...storage.values()].some(v=>/secret-key|secret-recovery|private-test-password/.test(v)));
+console.log('PERSONAL SETTINGS / MFA CHALLENGE / DIRTY FORMS / CONFIRMED ROUTER JOBS / PTY / SECRET CLEARING PASS');
 console.log('FRONTEND / RU-EN / VERSION LINKS / EIGHT APPEARANCES / FOUR CHART RENDERERS / SETTINGS / CRUD PASS');

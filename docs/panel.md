@@ -12,7 +12,7 @@ For an existing profile, it prefers the current transport and security mode. Oth
 it chooses the first supported node. Paste the URL again to import a later update.
 
 Read [VLESS transports](vless.md) for supported transports, URL parameters and
-the combinations accepted by the bundled Xray core. Profile cards show both the
+the combinations accepted by the bundled Xray core. Profile rows show both the
 transport and security mode, such as `XHTTP / TLS` or `RAW/TCP / REALITY`.
 
 The panel reads Xray outbound counters and keeps cumulative totals in SQLite.
@@ -30,18 +30,28 @@ IP lists accept mixed IPv4/IPv6 addresses and CIDRs, normalize networks and remo
 duplicates. Import text files or paste a NetLens `ips.txt` export. Copy operations
 include the full list.
 
-Settings has Appearance, Routing, Checks, Users and Security tabs. Administrators
-manage common settings and accounts. Operators manage profiles and IP lists,
-generate scripts, choose appearance and change their password. Passwords require
+Use To RouterOS to install or replace a list after confirming the operation.
+The panel shows the SSH import log. Deleting a list removes its owned router
+resources before deleting the panel record. A failed cleanup leaves the record
+available for retry. Configure the SSH connection first; see [RouterOS](routeros.md).
+
+Settings has Routing, Checks, RouterOS and Users tabs. Administrators
+manage common settings, router access and accounts. Operators manage profiles
+and IP lists, including confirmed router operations. Passwords require
 8 to 1024 characters. The panel protects the last administrator and prevents
 self-deletion.
 
-Appearance offers Titan, Paper, Console and Contour. Each has a light/dark pair
-and its own component layout and traffic chart. The browser stores the style and
-color mode as independent preferences. The header sun/moon button changes color
-mode without changing the style.
+Click your name to open personal settings: Profile, Appearance and Security.
+Change your display name, upload a PNG, JPEG or WebP avatar up to 2 MB, or remove
+it. The panel crops avatars to 256 × 256 pixels and strips image metadata.
 
-Choose Русский or English on the sign-in page or under Settings → Appearance.
+Appearance offers Titan, Paper, Console and Contour. Each has a light/dark pair
+and its own typography, navigation treatment and traffic chart. Profiles and IP
+lists use compact rows in all four styles. Light surfaces use a pale accent tint.
+Your account stores appearance and language preferences; the browser also keeps
+them for the sign-in screen. The header sun/moon button changes color mode.
+
+Choose Русский or English on the sign-in page or under your name → Appearance.
 The browser saves your language choice. Switching languages keeps unsaved form
 values and updates labels, messages, chart captions and date formats.
 
@@ -49,6 +59,22 @@ The lower-left version link opens the matching GitHub tag. Versions use
 `1.0-<short commit SHA>`; each repository uses its own seven-character SHA.
 The container build records the source revision, so the panel can show it
 without Git at runtime.
+
+## Two-factor authentication
+
+Open your name → Security → Set up 2FA and enter your current password.
+Scan the QR code with a TOTP authenticator, then enter its six-digit code to
+enable protection. Save the ten recovery codes before leaving the page.
+Each recovery code works once; the panel stores only their hashes.
+
+At sign-in, enter your password followed by an authenticator or recovery code.
+An accepted TOTP code cannot be reused. The panel limits attempts and expires
+unfinished sign-ins after three minutes. Keep the server clock synchronized.
+
+Disabling 2FA or generating replacement recovery codes requires your password
+and a fresh code. Replacement codes invalidate the previous set. Security changes
+revoke other sessions. If you lose both the authenticator and recovery codes,
+use the local [administrator recovery command](operations.md#recover-administrator-access).
 
 ## HTTP API
 
@@ -76,3 +102,21 @@ CSRF token to reset profile probe counts.
 API responses omit VLESS credentials and password hashes. Keep session cookies,
 CSRF tokens and exported configuration files private. Account changes revoke
 earlier sessions through a user revision check.
+
+A password login for a protected account returns `requires_2fa` and a `challenge`
+without issuing a session. Complete it with `POST /api/login/2fa` using `challenge`
+and `code`. Personal writes use `/api/account/profile`, `/api/account/avatar`, and
+`/api/account/2fa/setup`, `/enable`, `/disable`, `/recovery`. The avatar endpoint
+accepts base64 image bytes in `image`; an empty string removes the avatar.
+
+`POST /api/routeros/apply` and `POST /api/ip-lists/delete` accept a list `id` and
+`version`, and return HTTP 202 with a job `id`. Poll
+`GET /api/routeros/jobs/<id>?cursor=<cursor>` for status and incremental log lines.
+Statuses are `queued`, `running`, `done` and `error`; retain the returned cursor.
+The panel keeps the last 30 jobs and up to 600 lines per job in process memory.
+
+Administrators configure SSH through `GET/POST /api/routeros/config` and inspect
+a host fingerprint through `POST /api/routeros/host-key`. Terminal endpoints
+`/api/routeros/terminal/open`, `/input`, `/resize`, `/close` use POST;
+`GET /api/routeros/terminal/<id>?cursor=<cursor>` returns base64 PTY output.
+Terminal IDs belong to one user and one panel session.

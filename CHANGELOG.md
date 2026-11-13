@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Confirmed RouterOS list installation, scoped deletion, operation logs and an
+  administrator SSH terminal with pinned host keys.
+- Personal settings, processed avatars, account preferences and TOTP 2FA with
+  one-time recovery codes.
+- Compact profile and IP-list rows across all styles, with tinted light surfaces.
 - VLESS transport import with TLS, REALITY and none, including XHTTP/TLS,
   WebSocket, gRPC, HTTPUpgrade, mKCP, Hysteria and XDrive.
 - Environment-based network, port and initial account configuration.

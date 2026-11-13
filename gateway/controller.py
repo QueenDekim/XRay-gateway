@@ -208,6 +208,8 @@ class Controller:
 
     def change_ip_list(self, action, data, defaults=()):
         with self.lock:
+            service=getattr(self,'router_service',None)
+            if service and str(data.get('id','')) in service.busy:raise ValueError('Для списка уже выполняется операция RouterOS.')
             lists = self.ip_lists(defaults)
             current = next((item for item in lists if item['id'] == data.get('id')), None)
             if action != 'add':

@@ -4,6 +4,7 @@
  let routerLoaded=false,jobTimer,jobId='',jobCursor=0,jobLines=[],sshId='',sshCursor=0,sshTimer,terminal,fit,sshSending=Promise.resolve();
  const jobState=value=>t(({queued:'В очереди',running:'Выполняется',done:'Завершено',error:'Ошибка'})[value]||value);
  const owns=['profile','appearance','security'];
+ function passwordStep(){challenge='';$('loginFactor').hidden=true;$('loginCode').value='';$('loginCode').required=false;for(const name of ['username','password']){const field=$('loginForm').elements.namedItem(name);field.disabled=false;field.required=true;}}
  function selectAccount(name,focus=false){accountTab=owns.includes(name)?name:'profile';for(const key of owns){$('accountPanel-'+key).hidden=key!==accountTab;const b=$('accountTab-'+key);b.setAttribute('aria-selected',String(key===accountTab));b.tabIndex=key===accountTab?0:-1;}if(focus)$('accountTab-'+accountTab).focus();}
  function image(user,prefix){const img=$(prefix==='header'?'headerAvatar':'accountAvatar'),letters=$(prefix==='header'?'headerInitials':'accountInitials');letters.textContent=(user.display_name||user.username||'').split(/\s+/).map(v=>Array.from(v)[0]||'').join('').slice(0,2).toUpperCase();img.hidden=!user.avatar;letters.hidden=!!user.avatar;if(user.avatar&&img.getAttribute('src')!==user.avatar)img.setAttribute('src',user.avatar);img.onerror=()=>{img.hidden=true;letters.hidden=false;};}
  function render(){
@@ -17,9 +18,8 @@
   if(user.role==='admin'&&!routerLoaded)loadRouter();
  }
  function clear(){
-  challenge='';appliedUser='';routerLoaded=false;clearTimeout(preferenceTimer);clearTimeout(jobTimer);clearTimeout(sshTimer);jobId='';sshId='';
-  for(const name of ['username','password'])$('loginForm').elements.namedItem(name).disabled=false;
-  $('loginCode').required=false;for(const id of ['accountProfileForm','routerConnectionForm'])delete $(id).dataset.dirty;
+  passwordStep();appliedUser='';routerLoaded=false;clearTimeout(preferenceTimer);clearTimeout(jobTimer);clearTimeout(sshTimer);jobId='';sshId='';
+  for(const id of ['accountProfileForm','routerConnectionForm'])delete $(id).dataset.dirty;
   $('loginFactor').hidden=true;$('loginCode').value='';for(const id of ['factorSetupForm','factorEnableForm','factorManageForm','accountProfileForm','routerConnectionForm'])$(id).reset();
   $('recoveryCodes').value='';$('factorRecovery').hidden=true;$('factorEnrollment').hidden=true;message('factorSecret','');$('factorQr').removeAttribute('src');if(terminal)terminal.reset();
  }
@@ -28,11 +28,12 @@
   try{
    const data=challenge?{challenge,code:$('loginCode').value.trim()}:Object.fromEntries(new FormData(event.target));
    const result=await api(challenge?'/api/login/2fa':'/api/login',data);
-   if(result.requires_2fa){challenge=result.challenge;$('loginFactor').hidden=false;event.target.elements.password.value='';for(const name of ['username','password'])event.target.elements.namedItem(name).disabled=true;$('loginCode').required=true;$('loginCode').focus();return;}
-   challenge='';event.target.reset();for(const name of ['username','password'])event.target.elements.namedItem(name).disabled=false;$('loginCode').required=false;$('loginFactor').hidden=true;await refresh();
+   if(result.requires_2fa){challenge=result.challenge;$('loginFactor').hidden=false;event.target.elements.password.value='';for(const name of ['username','password'])event.target.elements.namedItem(name).required=false;$('loginCode').required=true;$('loginCode').focus();return;}
+   event.target.reset();passwordStep();await refresh();
   }catch(error){message('loginError',error.message);}finally{button.disabled=false;}
  }
- $('loginBack').onclick=()=>{challenge='';$('loginFactor').hidden=true;$('loginCode').value='';$('loginCode').required=false;for(const name of ['username','password'])$('loginForm').elements.namedItem(name).disabled=false;message('loginError','');$('loginForm').elements.password.focus();};
+ $('loginBack').onclick=()=>{passwordStep();message('loginError','');$('loginForm').elements.password.focus();};
+ $('loginForm').addEventListener('input',event=>{if(challenge&&['username','password'].includes(event.target.name)){passwordStep();message('loginError','');}});
  $('accountToggle').onclick=()=>selectPage('account');
  $('accountTabs').addEventListener('click',event=>{const b=event.target.closest('button');if(b?.dataset.accountTab)selectAccount(b.dataset.accountTab);});
  $('accountTabs').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const b=event.target.closest('button');if(!b?.dataset.accountTab)return;const i=owns.indexOf(b.dataset.accountTab);const n=event.key==='Home'?0:event.key==='End'?2:(i+(event.key==='ArrowRight'?1:-1)+3)%3;event.preventDefault();selectAccount(owns[n],true);});

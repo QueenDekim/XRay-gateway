@@ -374,11 +374,15 @@ assert.ok(calls.some(v=>v.url==='/api/routeros/apply'&&v.data.id==='project'&&v.
 assert.equal(nodes.routerJobLog.textContent,'Applied');assert.equal(nodes.routerJobDialog.open,true);
 confirmation=context.window.Management.startJob('delete','project');nodes.confirmationAccept.onclick();await confirmation;await new Promise(resolve=>setImmediate(resolve));
 assert.ok(calls.some(v=>v.url==='/api/ip-lists/delete'&&v.data.id==='project'));
-await nodes.terminalConnect.onclick();await new Promise(resolve=>setImmediate(resolve));
+vm.runInContext("selectPage('routeros');selectPage('routeros');",context);await new Promise(resolve=>setImmediate(resolve));
+const openedCount=calls.filter(v=>v.url==='/api/routeros/terminal/open').length;assert.equal(openedCount,1);
+context.window.Management.page('routeros');await new Promise(resolve=>setImmediate(resolve));assert.equal(calls.filter(v=>v.url==='/api/routeros/terminal/open').length,openedCount);
 assert.equal(context.testTerminal.output.at(-1),'[panel@router] > ');
 context.testTerminal.send('\u0003/system identity print\r');await new Promise(resolve=>setImmediate(resolve));
 assert.ok(calls.some(v=>v.url==='/api/routeros/terminal/input'&&v.data.data.startsWith('\u0003')));
 await nodes.terminalDisconnect.onclick();assert.ok(calls.some(v=>v.url==='/api/routeros/terminal/close'));
+context.window.Management.page('routeros');await new Promise(resolve=>setImmediate(resolve));assert.equal(calls.filter(v=>v.url==='/api/routeros/terminal/open').length,openedCount);
+assert.equal(nodes.terminalConnect.hidden,false);await nodes.terminalConnect.onclick();assert.equal(calls.filter(v=>v.url==='/api/routeros/terminal/open').length,openedCount+1);await nodes.terminalDisconnect.onclick();
 nodes.recoveryCodes.value='secret-recovery';nodes.routerConnectionForm.elements.private_key.value='secret-key';
 context.window.Management.clear();
 assert.equal(nodes.recoveryCodes.value,'');assert.equal(nodes.routerConnectionForm.elements.private_key.value,'');

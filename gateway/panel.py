@@ -243,7 +243,12 @@ class Panel(http.server.BaseHTTPRequestHandler):
                     elif actor['role']!='admin':self.respond(403,{'error':'Требуются права администратора.'})
                     elif path=='/api/routeros/config':self.respond(200,router.save(data))
                     elif path=='/api/routeros/host-key':self.respond(200,router.scan(data))
-                    elif path=='/api/routeros/terminal/open':self.respond(200,router.open_terminal(actor,token,data.get('cols',100),data.get('rows',30)))
+                    elif path=='/api/routeros/terminal/open':
+                        opened=router.open_terminal(actor,token,data.get('cols',100),data.get('rows',30))
+                        _,active=self.session()
+                        if not active:
+                            router.close_terminal(opened['id']);self.respond(401,{'error':'Требуется вход.'});return
+                        self.respond(200,opened)
                     elif path=='/api/routeros/terminal/input':
                         router.write_terminal(str(data.get('id','')),actor,token,data.get('data',''));self.respond(200,{'ok':True})
                     elif path=='/api/routeros/terminal/resize':

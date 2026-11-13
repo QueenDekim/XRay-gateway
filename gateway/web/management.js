@@ -1,6 +1,7 @@
 'use strict';
 (() => {
  let challenge='',accountTab='profile',appliedUser='',applyingPreferences=false,preferenceTimer;
+ let sshConnecting=false,sshManual=false,sshEpoch=0;
  let routerLoaded=false,savedRouter=null,jobTimer,jobId='',jobCursor=0,jobLines=[],sshId='',sshCursor=0,sshTimer,terminal,fit,sshSending=Promise.resolve();
  const jobState=value=>t(({queued:'В очереди',running:'Выполняется',done:'Завершено',error:'Ошибка'})[value]||value);
  const owns=['profile','appearance','security'];
@@ -14,12 +15,12 @@
   const profile=$('accountProfileForm');if(profile.dataset.dirty!=='1')profile.elements.display_name.value=user.display_name||user.username;
   const enabled=!!user.two_factor_enabled;message('factorState',enabled?'Включена':'Выключена');$('factorSetupForm').hidden=enabled;$('factorManageForm').hidden=!enabled;
   if(enabled){$('factorEnrollment').hidden=true;message('factorSecret','');$('factorQr').removeAttribute('src');}
-  $('terminalConnect').hidden=user.role!=='admin'||!!sshId;$('terminalDisconnect').hidden=!sshId;
+  $('terminalConnect').hidden=user.role!=='admin'||!!sshId||sshConnecting;$('terminalDisconnect').hidden=!sshId;
   if(user.role!=='admin')message('terminalStatus','Требуются права администратора.');
   if(user.role==='admin'&&!routerLoaded)loadRouter();
  }
  function clear(){
-  passwordStep();appliedUser='';routerLoaded=false;savedRouter=null;clearTimeout(preferenceTimer);clearTimeout(jobTimer);clearTimeout(sshTimer);jobId='';sshId='';
+  passwordStep();sshEpoch++;sshConnecting=false;sshManual=false;appliedUser='';routerLoaded=false;savedRouter=null;clearTimeout(preferenceTimer);clearTimeout(jobTimer);clearTimeout(sshTimer);jobId='';sshId='';
   for(const id of ['accountProfileForm','routerConnectionForm'])delete $(id).dataset.dirty;
   for(const id of ['factorSetupForm','factorEnableForm','factorManageForm','accountProfileForm','routerConnectionForm'])$(id).reset();credentialMasks();
   $('recoveryCodes').value='';$('factorRecovery').hidden=true;$('factorEnrollment').hidden=true;message('factorSecret','');$('factorQr').removeAttribute('src');if(terminal)terminal.reset();
@@ -75,9 +76,16 @@
  document.addEventListener('click',event=>{const b=event.target.closest('button');if(b?.dataset.routerJob)openJob(b.dataset.routerJob);});$('refreshRouterJobs').onclick=loadJobs;
  function fitTerminal(){if(!terminal||!sshId)return;fit.fit();api('/api/routeros/terminal/resize',{id:sshId,cols:terminal.cols,rows:terminal.rows}).catch(error=>message('terminalStatus',error.message));}
  function initTerminal(){if(terminal)return;terminal=new window.Terminal({cursorBlink:false,fontFamily:'Consolas, "Liberation Mono", monospace',fontSize:14,scrollback:2000,theme:{background:'#111820',foreground:'#e4eaf2'}});fit=new window.FitAddon.FitAddon();terminal.loadAddon(fit);terminal.open($('sshTerminal'));terminal.onData(data=>{const id=sshId;if(id)sshSending=sshSending.then(()=>id===sshId?api('/api/routeros/terminal/input',{id,data}):null).catch(error=>message('terminalStatus',error.message));});new ResizeObserver(()=>fitTerminal()).observe($('sshTerminal'));}
- async function pollTerminal(){const id=sshId;if(!id)return;try{const result=await api('/api/routeros/terminal/'+id+'?cursor='+sshCursor);if(sshId!==id)return;sshCursor=result.cursor;if(result.data)terminal.write(Uint8Array.from(atob(result.data),v=>v.charCodeAt(0)));if(result.closed){sshId='';message('terminalStatus','Соединение закрыто');render();return;}}catch(error){sshId='';message('terminalStatus',error.message);render();return;}sshTimer=setTimeout(pollTerminal,150);}
- $('terminalConnect').onclick=async()=>{const b=$('terminalConnect');b.disabled=true;try{initTerminal();fit.fit();const result=await api('/api/routeros/terminal/open',{cols:terminal.cols,rows:terminal.rows});sshId=result.id;sshCursor=0;terminal.reset();message('terminalStatus','Подключено');render();terminal.focus();pollTerminal();}catch(error){message('terminalStatus',error.message);}finally{b.disabled=false;}};
- $('terminalDisconnect').onclick=async()=>{const id=sshId;sshId='';clearTimeout(sshTimer);try{if(id)await api('/api/routeros/terminal/close',{id});message('terminalStatus','Не подключено');}catch(error){message('terminalStatus',error.message);}render();};
- function pageChanged(name){if(name==='routeros'){loadJobs();if(terminal)setTimeout(fitTerminal,0);}if(name!=='account'){$('recoveryCodes').value='';$('factorRecovery').hidden=true;}}
+ async function pollTerminal(){const id=sshId;if(!id)return;try{const result=await api('/api/routeros/terminal/'+id+'?cursor='+sshCursor);if(sshId!==id)return;sshCursor=result.cursor;if(result.data)terminal.write(Uint8Array.from(atob(result.data),v=>v.charCodeAt(0)));if(result.closed){sshId='';message('terminalStatus','Соединение закрыто');render();if(page==='routeros'&&!sshManual)connectTerminal();return;}}catch(error){if(sshId!==id)return;sshId='';message('terminalStatus',error.message);render();return;}sshTimer=setTimeout(pollTerminal,150);}
+ async function connectTerminal(){
+  if(sshId||sshConnecting||!state||state.user.role!=='admin')return;
+  const epoch=sshEpoch;sshConnecting=true;sshManual=false;message('terminalStatus','Подключение…');render();
+  try{initTerminal();fit.fit();const result=await api('/api/routeros/terminal/open',{cols:terminal.cols,rows:terminal.rows});if(epoch!==sshEpoch)return;sshId=result.id;sshCursor=0;terminal.reset();message('terminalStatus','Подключено');if(page==='routeros')terminal.focus();pollTerminal();}
+  catch(error){if(epoch===sshEpoch)message('terminalStatus',error.message);}
+  finally{if(epoch===sshEpoch){sshConnecting=false;render();}}
+ }
+ $('terminalConnect').onclick=connectTerminal;
+ $('terminalDisconnect').onclick=async()=>{sshManual=true;const id=sshId;sshId='';clearTimeout(sshTimer);try{if(id)await api('/api/routeros/terminal/close',{id});message('terminalStatus','Не подключено');}catch(error){message('terminalStatus',error.message);}render();};
+ function pageChanged(name){if(name==='routeros'){loadJobs();if(!sshManual)connectTerminal();if(terminal)setTimeout(fitTerminal,0);}if(name!=='account'){$('recoveryCodes').value='';$('factorRecovery').hidden=true;}}
  window.Management={render,clear,login,startJob,page:pageChanged};if(state)render();
 })();

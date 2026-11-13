@@ -1,12 +1,11 @@
 """Generate a scoped RouterOS import without connecting to a router."""
 import argparse
-import ipaddress
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'gateway'), str(ROOT / 'scripts')]
-from controller import routeros
+from controller import routeros,list_address
 
 
 def main():
@@ -25,7 +24,7 @@ def main():
     for raw in args.destinations.read_text(encoding='utf-8-sig').splitlines():
         value = raw.partition('#')[0].strip()
         if value:
-            addresses.append(str(ipaddress.ip_network(value, strict=False)))
+            addresses.append(list_address(value))
     script = routeros({'gateway':args.gateway, 'host':args.host, 'source':args.source,
                       'interface':args.interface, 'local_networks':args.local_networks,
                       'list_key':args.list_id, 'list_name':args.list_name}, addresses)

@@ -114,6 +114,13 @@ class ManagementTests(unittest.TestCase):
             self.assertEqual(self.request(path,{},operator)[0],403,path)
         self.assertEqual(self.request('/api/routeros/config',headers=operator)[0],403)
 
+    def test_terminal_open_closes_connection_if_panel_session_was_revoked(self):
+        service=RouterService(self.c);self.c.router_service=service
+        def open_terminal(*args):self.panel.handler.sessions.clear();return {'id':'late-terminal'}
+        service.open_terminal=Mock(side_effect=open_terminal);service.close_terminal=Mock()
+        self.assertEqual(self.request('/api/routeros/terminal/open',{},self.headers)[0],401)
+        service.close_terminal.assert_called_once_with('late-terminal')
+
     def test_legacy_project_list_supports_managed_deletion(self):
         service=RouterService(self.c);self.c.router_service=service;service.public_config=lambda:{'configured':True}
         service.import_script=Mock()

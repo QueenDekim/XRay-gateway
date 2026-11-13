@@ -19,7 +19,8 @@ from environment import network_defaults, service_port
 
 
 def address_sort_key(value):
-    network = ipaddress.ip_network(value, strict=False)
+    try:network = ipaddress.ip_network(value, strict=False)
+    except ValueError:return 7,value.rstrip('.').lower(),0
     return network.version, int(network.network_address), network.prefixlen
 
 
@@ -31,6 +32,19 @@ def address_network(value):
 
 def address_text(network):
     return str(network.network_address) if network.prefixlen == network.max_prefixlen else str(network)
+
+
+def list_address(value):
+    """Validate an IP/network or DNS hostname without resolving it."""
+    try:return address_text(address_network(value))
+    except ValueError:pass
+    try:domain=value.encode('idna').decode('ascii')
+    except UnicodeError:raise ValueError('Invalid DNS name') from None
+    labels=domain.rstrip('.').split('.')
+    if (len(domain.rstrip('.'))>253 or len(labels)<2 or not re.search(r'[a-zA-Z]',labels[-1])
+        or any(not re.fullmatch(r'[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?',label) for label in labels)):
+        raise ValueError('Invalid DNS name')
+    return domain
 
 
 def ports(profile):
@@ -196,9 +210,10 @@ class Controller:
                 addresses = []
                 for value in defaults:
                     try:
-                        network = address_network(value)
-                        if network.is_global:
-                            addresses.append(address_text(network))
+                        normalized=list_address(value)
+                        try:network=address_network(normalized)
+                        except ValueError:addresses.append(normalized);continue
+                        if network.is_global:addresses.append(address_text(network))
                     except ValueError:
                         continue
                 lists = [{'id': 'project', 'name': 'Из проекта', 'version': 1,
@@ -228,16 +243,16 @@ class Controller:
                 raw = data.get('addresses', '')
                 if not isinstance(raw, str):
                     raise ValueError('Адреса должны быть текстом')
-                addresses = set()
+                addresses = {}
                 for line in raw.lstrip('\ufeff').splitlines():
                     for value in re.split(r'[\s,;]+', line.partition('#')[0].strip()):
                         if not value:
                             continue
                         try:
-                            network = address_network(value)
+                            normalized = list_address(value)
                         except ValueError:
-                            raise ValueError('Некорректный IPv4, IPv6 или CIDR: ' + value[:80]) from None
-                        addresses.add(address_text(network))
+                            raise ValueError('Некорректный IPv4, IPv6, CIDR или домен: ' + value[:80]) from None
+                        addresses.setdefault(normalized.rstrip('.').lower(),normalized)
                         if len(addresses) > 5000:
                             raise ValueError('Максимум 5000 адресов в списке')
                 if action == 'add':
@@ -246,7 +261,7 @@ class Controller:
                     current = {'id': 'list_' + uuid.uuid4().hex[:12], 'version': 0}
                     lists.append(current)
                 current.update(name=name, version=current['version'] + 1,
-                    addresses=sorted(addresses, key=address_sort_key))
+                    addresses=sorted(addresses.values(), key=address_sort_key))
             self.save('ip_lists', lists)
             return copy.deepcopy(current) if action != 'delete' else None
 
@@ -459,15 +474,18 @@ def routeros(data, defaults, warnings=None):
             local_networks.add(network)
     raw = str(data.get('destinations', '')).strip()
     values = re.split(r'[\s,;]+', raw) if raw else defaults
-    addresses, addresses6 = set(), set()
+    addresses, addresses6, domains = set(), set(), {}
     for text in values:
-        n = address_network(text)
+        try:normalized=list_address(text)
+        except ValueError:raise ValueError('Некорректный IPv4, IPv6, CIDR или домен: '+str(text)[:80]) from None
+        try:n = address_network(normalized)
+        except ValueError:domains.setdefault(normalized.rstrip('.').lower(),normalized);continue
         if n.is_global:
             (addresses if n.version == 4 else addresses6).add(n)
         elif raw:
             raise ValueError('Назначения должны быть публичными IPv4, IPv6 или подсетями.')
-    if not 1 <= len(addresses) + len(addresses6) <= 5000:
-        raise ValueError('Укажите от 1 до 5000 публичных IP-назначений.')
+    if not 1 <= len(addresses) + len(addresses6) + len(domains) <= 5000:
+        raise ValueError('Укажите от 1 до 5000 IP-назначений или доменов.')
     lines = ['# Xray Gateway — RouterOS 7. Netwatch enables IPv4 routing when the gateway is healthy.',
        f'# Managed IP list ID: {key}',
        f'/tool netwatch remove [find comment={watch_comment}]',
@@ -475,9 +493,11 @@ def routeros(data, defaults, warnings=None):
        f'/ip firewall mangle remove [find comment={local_comment}]',
        f'/ip firewall mangle remove [find comment={mark_comment}]',
        f'/ip route remove [find comment={route_comment}]',
+       f'/ip firewall address-list remove [find list={destination_list} dynamic=no]',
        f'/ip firewall address-list remove [find list={destination_list}]',
        f'/ip firewall address-list remove [find list={local_list}]',
        f'/ip firewall address-list remove [find list={exempt_list}]',
+       f'/ipv6 firewall address-list remove [find list={destination_list} dynamic=no]',
        f'/ipv6 firewall address-list remove [find list={destination_list}]']
     if addresses6:
         warning = 'IPv6-адреса выгружены в address-list. Маршрутизация IPv6 через VPN не настроена.'
@@ -486,7 +506,8 @@ def routeros(data, defaults, warnings=None):
         lines.append('# IPv6 address-list only; IPv6 VPN routing is not configured.')
         lines += [f'/ipv6 firewall address-list add list={destination_list} address={n} comment={label}'
                   for n in ipaddress.collapse_addresses(sorted(addresses6, key=lambda n: (int(n.network_address), n.prefixlen)))]
-    if not addresses:
+    lines += [f'/ipv6 firewall address-list add list={destination_list} address={domain} comment={label}' for domain in sorted(domains.values(),key=str.lower)]
+    if not addresses and not domains:
         lines.append(f'/routing table remove [find name={route_table}]')
         return '\n'.join(lines)
     lines += [f':if ([:len [/routing table find name={route_table}]] = 0) do={{ /routing table add fib name={route_table} }}',
@@ -507,6 +528,7 @@ def routeros(data, defaults, warnings=None):
        '    }',
        '}']
     lines += [f'/ip firewall address-list add list={destination_list} address={n} comment={label}' for n in ipaddress.collapse_addresses(sorted(addresses, key=lambda n: (int(n.network_address), n.prefixlen)))]
+    lines += [f'/ip firewall address-list add list={destination_list} address={domain} comment={label}' for domain in sorted(domains.values(),key=str.lower)]
     lines += [f'/ip firewall mangle add chain={policy_chain} action=return dst-address-list={local_list} comment={local_comment}',
        f'/ip firewall mangle add chain={policy_chain} action=mark-routing dst-address-list=!{local_list} new-routing-mark={route_table} passthrough=no comment={mark_comment}',
        f'/ip firewall mangle add chain=prerouting action=jump jump-target={policy_chain} in-interface={interface} src-address={source} src-address-list=!{exempt_list} dst-address-list={destination_list} dst-address-type=!local disabled=yes comment={entry_comment}',

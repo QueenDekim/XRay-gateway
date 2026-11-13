@@ -26,9 +26,11 @@ continue from their current values.
 
 ## IP lists and settings
 
-IP lists accept mixed IPv4/IPv6 addresses and CIDRs, normalize networks and remove
-duplicates. Import text files or paste a NetLens `ips.txt` export. Copy operations
-include the full list.
+IP lists accept mixed IPv4/IPv6 addresses, CIDRs and domain names. The panel
+normalizes networks and removes duplicates, including case-insensitive domain
+duplicates. Import text files or paste a NetLens export. Copy operations include
+the full list. Enter hostnames such as `www.example.com`, without URL schemes,
+ports or wildcard prefixes. Internationalized names use IDNA encoding.
 
 Use To RouterOS to install or replace a list after confirming the operation.
 The panel shows the SSH import log. Deleting a list removes its owned router

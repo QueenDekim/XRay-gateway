@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Mixed domain, IPv4 and IPv6 lists with native RouterOS DNS entries and scoped
+  cleanup of static and dynamic entries.
+- Automatic RouterOS terminal connection and compact Contour import controls.
 - Confirmed RouterOS list installation, scoped deletion, operation logs and an
   administrator SSH terminal with pinned host keys.
 - Personal settings, processed avatars, account preferences and TOTP 2FA with

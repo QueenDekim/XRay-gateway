@@ -40,6 +40,8 @@ def cleanup_script(key):
     lines.append(f'/ip route remove [find comment=XRAY-GW-TABLE-{key}]')
     for family in ('ip','ipv6'):
         for kind in ('DEST','LOCAL','EXEMPT'):
+            # Removing a DNS name also removes its dynamic children and their IDs.
+            lines.append(f'/{family} firewall address-list remove [find list=XRAY-{kind}-{key} dynamic=no]')
             lines.append(f'/{family} firewall address-list remove [find list=XRAY-{kind}-{key}]')
     lines.append(f'/routing table remove [find name=xray-gateway-{key}]')
     return '\n'.join(lines)
@@ -168,7 +170,9 @@ class RouterService:
             sftp=client.open_sftp()
             with sftp.open(filename,'w') as stream:stream.write((script+'\n:put "'+marker+'"\n').encode('utf-8'))
             log('RouterOS: импорт конфигурации')
-            result=self.execute(client,'/import file-name="'+filename+'" verbose=yes',log)
+            def import_log(line):
+                if not re.fullmatch(r'\s*#line\s+\d+\s*',line):log(line)
+            result=self.execute(client,'/import file-name="'+filename+'" verbose=yes',import_log)
             if not any(line.strip()==marker for line in result.splitlines()):raise ValueError('RouterOS не подтвердил завершение импорта.')
             log('RouterOS: импорт завершён')
         finally:

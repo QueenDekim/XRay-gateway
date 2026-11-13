@@ -65,6 +65,8 @@ fallback when its VLESS profiles are unavailable.
 ## Interactive terminal and script export
 
 Administrators can connect to an interactive SSH terminal on the RouterOS tab.
+Opening the tab starts the connection. After a manual disconnect, choose Connect
+to reconnect; switching tabs preserves that manual disconnect.
 The terminal supports cursor keys, Ctrl-C, resizing and scrolling. Disconnect
 when finished. Logging out closes that session's terminal. Idle terminals close
 after five minutes; a terminal session lasts at most one hour. Opening another
@@ -86,9 +88,16 @@ python3 scripts/build_routeros.py \
   --output build/streaming.rsc
 ```
 
-Use public addresses or CIDRs, one per line. The generator accepts IPv4 and IPv6.
+Use public addresses, CIDRs or domain names, one per line. The generator accepts
+mixed entries. It sends domains as names to both IPv4 and IPv6 address lists,
+without resolving them in the panel. RouterOS resolves the names and maintains
+their dynamic entries using its DNS configuration.
 IPv6 entries export to `/ipv6 firewall address-list`; the script creates the VPN
 policy for IPv4 traffic. Add an IPv6 routing policy if your network needs one.
+
+During replacement and deletion, the panel removes static DNS entries before
+clearing the remaining dynamic entries. Operation logs omit the import's
+`#line N` comments and retain commands and error messages.
 
 ## Remove generated resources
 

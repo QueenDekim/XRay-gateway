@@ -307,6 +307,12 @@ main { min-height: calc(100vh - 64px); }
 #ipAddresses { font: 13px/1.7 Consolas, "Liberation Mono", monospace; }
 #ipListForm > .primary { margin-top: 16px; }
 #ipListForm .section-heading > label { margin: 12px 0; }
+#ipListForm .ip-list-toolbar { margin: 0 0 12px; gap: 12px; flex-wrap: wrap; }
+#ipListForm .ip-list-toolbar > label { margin: 0; }
+:root[data-design="contour"] #ipListForm .list-tools .secondary { min-height: 32px; padding: 6px 12px; border-radius: 8px; font-size: 12px; line-height: 20px; }
+@media (max-width: 700px) {
+ :root[data-design="contour"] #ipListForm .list-tools .secondary { min-height: 44px; }
+}
 .clipboard-buffer { position: fixed; inset: 0 auto auto 0; opacity: 0; width: 1px; height: 1px; }
 .settings-form-panel { max-width: 760px; }
 .settings-form-panel h2 { margin-bottom: 20px; }

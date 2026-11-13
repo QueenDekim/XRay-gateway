@@ -12,7 +12,7 @@ import test_panel
 from accounts import Accounts
 from secure_store import SecretStore
 from two_factor import totp
-from router_service import RouterService,PinnedKey,cleanup_script,fingerprint
+from router_service import RouterService,PinnedKey,TerminalIntro,cleanup_script,fingerprint
 
 
 class ManagementTests(unittest.TestCase):
@@ -153,6 +153,22 @@ class ManagementTests(unittest.TestCase):
 
 
 class SecurityUnitTests(unittest.TestCase):
+    def test_terminal_intro_strips_startup_screen_and_preserves_banner_and_queries(self):
+        prefix=b'\r\x1b[9999B\r\x1b[9999B\x1bZ  \x1b[6n'+b'\r\n'*24+b'\n'
+        banner=b'  MMM      MMM\r\n  MikroTik RouterOS\r\n\r\n[user@router] > '
+        for size in (1,2,7,10000):
+            intro=TerminalIntro();raw=prefix+banner
+            actual=b''.join(intro.feed(raw[i:i+size]) for i in range(0,len(raw),size))
+            self.assertEqual(actual,b'\x1b[9999B\x1b[9999B\x1bZ  \x1b[6n\x1b[H'+banner)
+            later=b'\r\n\r\n\x1b[9999B\x1b[2Jcommand output\r\n'
+            self.assertEqual(intro.feed(later),later)
+
+    def test_terminal_intro_forwards_queries_before_banner_and_keeps_color_and_indent(self):
+        intro=TerminalIntro()
+        self.assertEqual(intro.feed(b'\x1bZ\x1b[6n'),b'\x1bZ\x1b[6n')
+        self.assertEqual(intro.feed(b'\r\n\r\n\x1b[32'),b'')
+        self.assertEqual(intro.feed(b'm  Banner\x1b[0m'),b'\x1b[32m  Banner\x1b[0m')
+
     def test_rfc6238_vectors(self):
         secret=base64.b32encode(b'12345678901234567890').decode()
         for timestamp,expected in [(59,'94287082'),(1111111109,'07081804'),(1111111111,'14050471'),(1234567890,'89005924'),(2000000000,'69279037')]:

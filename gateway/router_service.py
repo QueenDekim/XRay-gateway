@@ -53,6 +53,41 @@ class PinnedKey(paramiko.MissingHostKeyPolicy):
         if not hmac.compare_digest(fingerprint(key),self.expected):raise ValueError('Ключ SSH-сервера изменился. Проверьте отпечаток RouterOS.')
 
 
+class TerminalIntro:
+    """Trim RouterOS startup padding while forwarding terminal capability queries."""
+    control=re.compile(rb'\x1b(?:\[[0-?]*[ -/]*[@-~]|(?!\[)[@-_])')
+
+    def __init__(self):self.pending=b'';self.indent=b'';self.started=False;self.bottom=False
+
+    def feed(self,data):
+        if self.started:return data
+        self.pending+=data;output=bytearray()
+        while self.pending:
+            first=self.pending[:1]
+            if first in (b'\r',b'\n'):
+                self.indent=b'';self.pending=self.pending[1:]
+            elif first in (b' ',b'\t') and len(self.indent)<4096:
+                self.indent+=first;self.pending=self.pending[1:]
+            elif first==b'\x1b':
+                match=self.control.match(self.pending)
+                if match:
+                    sequence=match[0];self.pending=self.pending[len(sequence):]
+                    # RouterOS measures screen height with a bottom-row cursor query.
+                    # Let the client answer it before returning the banner to row one.
+                    if sequence==b'\x1b[9999B':self.bottom=True
+                    if sequence==b'\x1b[6n':output.extend(self.indent);self.indent=b''
+                    output.extend(sequence)
+                elif len(self.pending)<4096 and (len(self.pending)==1 or self.pending.startswith(b'\x1b[')):
+                    break
+                else:
+                    if self.bottom:output.extend(b'\x1b[H')
+                    output.extend(self.indent+self.pending);self.pending=b'';self.started=True
+            else:
+                if self.bottom:output.extend(b'\x1b[H')
+                output.extend(self.indent+self.pending);self.indent=b'';self.pending=b'';self.started=True
+        return bytes(output)
+
+
 class RouterService:
     def __init__(self,controller):
         self.controller=controller
@@ -251,12 +286,15 @@ class RouterService:
             terminal={'owner':actor['id'],'session':session,'client':client,'channel':channel,'buffer':bytearray(),'offset':0,'active':time.monotonic(),'started':time.monotonic()}
             self.terminals[identifier]=terminal
         def read():
+            intro=TerminalIntro()
             try:
                 while not channel.closed:
                     if time.monotonic()-terminal['active']>300 or time.monotonic()-terminal['started']>3600:break
                     if channel.recv_ready():
                         data=channel.recv(32768)
                         if not data:break
+                        data=intro.feed(data)
+                        if not data:continue
                         with self.lock:
                             terminal['buffer'].extend(data)
                             if len(terminal['buffer'])>262144:

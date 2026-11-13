@@ -2,6 +2,7 @@
 const $ = id => document.getElementById(id);
 const t = (source,...values) => window.I18n.t(source,...values);
 const locale = () => window.I18n.locale();
+const canManage = () => state?.user?.role==='admin';
 const messages = new Map();
 function message(id,value){messages.set(id,value);$(id).textContent=typeof value==='function'?value():t(value);}
 let confirmationResolve=null,confirmationAccepted=false;
@@ -65,35 +66,35 @@ function renderTraffic(){
  $('trafficChartDescription').textContent=history.length?t('{0} измерений. Входящий и исходящий трафик, байт в секунду. Максимум шкалы {1}. Последнее измерение: получено {2}, отправлено {3}',history.length,fmt(peak,true),fmt(history.at(-1).downlink_bps,true),fmt(history.at(-1).uplink_bps,true)):t('Ожидание измерений Xray');
 }
 document.addEventListener('appearancechange',()=>{if(state)renderTraffic();});
-function render(){const s=state,totals=s.totals;renderIpLists();renderSettings();notice(s.stats_error || s.last_error || '');$('username').textContent=s.user?.display_name||s.username;$('coreStatus').textContent=t(s.ready?'Xray работает':'Xray недоступен');$('coreStatus').classList.toggle('bad',!s.ready);$('totalDown').textContent=fmt(totals.downlink);$('totalUp').textContent=fmt(totals.uplink);$('downRate').textContent=fmt(totals.downlink_bps,true)+' '+window.I18n.t('сейчас');$('upRate').textContent=fmt(totals.uplink_bps,true)+' '+window.I18n.t('сейчас');$('uptime').textContent=duration(s.uptime);$('profileCount').textContent=window.I18n.t('{0} включено / {1} профилей',s.profiles.filter(p=>p.enabled).length,s.profiles.length);$('selectedName').textContent=s.profiles.find(p=>p.id===s.selected)?.name || 'Direct';$('routeSince').textContent=window.I18n.t('Выбран {0} назад',duration(Date.now()/1000-s.since));$('updated').textContent=window.I18n.t('Обновлено {0}',new Date().toLocaleTimeString(locale()));
+function render(){const s=state,totals=s.totals;for(const id of ['addProfile','resetProfileChecks','addIpList','profileActionsHeader'])$(id).hidden=!canManage();renderIpLists();renderSettings();notice(s.stats_error || s.last_error || '');$('username').textContent=s.user?.display_name||s.username;$('coreStatus').textContent=t(s.ready?'Xray работает':'Xray недоступен');$('coreStatus').classList.toggle('bad',!s.ready);$('totalDown').textContent=fmt(totals.downlink);$('totalUp').textContent=fmt(totals.uplink);$('downRate').textContent=fmt(totals.downlink_bps,true)+' '+window.I18n.t('сейчас');$('upRate').textContent=fmt(totals.uplink_bps,true)+' '+window.I18n.t('сейчас');$('uptime').textContent=duration(s.uptime);$('profileCount').textContent=window.I18n.t('{0} включено / {1} профилей',s.profiles.filter(p=>p.enabled).length,s.profiles.length);$('selectedName').textContent=s.profiles.find(p=>p.id===s.selected)?.name || 'Direct';$('routeSince').textContent=window.I18n.t('Выбран {0} назад',duration(Date.now()/1000-s.since));$('updated').textContent=window.I18n.t('Обновлено {0}',new Date().toLocaleTimeString(locale()));
  $('overviewProfiles').innerHTML=s.profiles.length?s.profiles.map(p=>`<article class="profile-card ${p.id===s.selected?'selected':''}"><div class="profile-identity"><div class="card-top"><h3>${esc(p.name)}</h3>${badge(p)}</div><p class="endpoint">${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</p></div><div class="card-stats"><div><small>${window.I18n.t('Задержка проверки')}</small><b>${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</b></div><div><small>${window.I18n.t('Успешных проверок')}</small><b>${p.stats.checks?((p.stats.successful_checks||0)/p.stats.checks*100).toFixed(1)+'%':'—'}</b></div><div><small>${window.I18n.t('Получено')}</small><b>${fmt(p.stats.downlink)}</b></div><div><small>${window.I18n.t('Отправлено')}</small><b>${fmt(p.stats.uplink)}</b></div></div></article>`).join(''):`<p class="muted">${window.I18n.t('Профилей нет')}</p>`;
- $('profileRows').innerHTML=s.profiles.map(p=>`<tr><td><b>${esc(p.name)}</b><small>${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</small></td><td>${badge(p)}</td><td class="mono">${p.priority}</td><td class="mono">${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</td><td class="mono">↓ ${fmt(p.stats.downlink)}<small>↑ ${fmt(p.stats.uplink)}</small></td><td class="mono">${p.stats.successful_checks||0} / ${p.stats.checks||0}</td><td><button data-edit="${p.id}">${window.I18n.t('Изменить')}</button><button class="danger" data-delete="${p.id}">${window.I18n.t('Удалить')}</button></td></tr>`).join('');$('directTraffic').textContent=`↓ ${fmt(s.direct.downlink)} / ↑ ${fmt(s.direct.uplink)}`;
+ $('profileRows').innerHTML=s.profiles.map(p=>`<tr><td><b>${esc(p.name)}</b><small>${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</small></td><td>${badge(p)}</td><td class="mono">${p.priority}</td><td class="mono">${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</td><td class="mono">↓ ${fmt(p.stats.downlink)}<small>↑ ${fmt(p.stats.uplink)}</small></td><td class="mono">${p.stats.successful_checks||0} / ${p.stats.checks||0}</td>${canManage()?`<td><button data-edit="${p.id}">${window.I18n.t('Изменить')}</button><button class="danger" data-delete="${p.id}">${window.I18n.t('Удалить')}</button></td>`:''}</tr>`).join('');$('directTraffic').textContent=`↓ ${fmt(s.direct.downlink)} / ↑ ${fmt(s.direct.uplink)}`;
  renderTraffic();window.Management?.render();
 }
-function editProfile(id){editing=id;editRevision=state.revision;const p=state.profiles.find(p=>p.id===id),f=$('profileForm');f.reset();f.elements.name.value=p?.name||'';f.elements.priority.value=p?.priority||10;f.elements.enabled.checked=p?.enabled??true;f.elements.uri.required=!p;$('dialogTitle').textContent=t(p?'Редактирование профиля':'Новый профиль');message('profileError','');$('profileDialog').showModal();}
-document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.page)selectPage(button.dataset.page);if(button.dataset.edit)editProfile(button.dataset.edit);if(button.dataset.delete){const p=state.profiles.find(p=>p.id===button.dataset.delete);if(!await confirmAction(()=>t('Удалить профиль «{0}»? Xray будет перезапущен, текущие соединения прервутся.',p.name),'Удалить'))return;button.disabled=true;try{await api('/api/profiles/delete',{id:p.id,revision:state.revision});await refresh();}catch(e){notice(e.message);}finally{button.disabled=false;}}});
+function editProfile(id){if(!canManage())return;editing=id;editRevision=state.revision;const p=state.profiles.find(p=>p.id===id),f=$('profileForm');f.reset();f.elements.name.value=p?.name||'';f.elements.priority.value=p?.priority||10;f.elements.enabled.checked=p?.enabled??true;f.elements.uri.required=!p;$('dialogTitle').textContent=t(p?'Редактирование профиля':'Новый профиль');message('profileError','');$('profileDialog').showModal();}
+document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.page)selectPage(button.dataset.page);if(button.dataset.edit)editProfile(button.dataset.edit);if(button.dataset.delete&&canManage()){const p=state.profiles.find(p=>p.id===button.dataset.delete);if(!await confirmAction(()=>t('Удалить профиль «{0}»? Xray будет перезапущен, текущие соединения прервутся.',p.name),'Удалить'))return;button.disabled=true;try{await api('/api/profiles/delete',{id:p.id,revision:state.revision});await refresh();}catch(e){notice(e.message);}finally{button.disabled=false;}}});
 $('loginForm').addEventListener('submit',event=>{event.preventDefault();window.Management.login(event);});
 $('logout').onclick=async()=>{try{await api('/api/logout',{});showLogin();}catch(e){notice(e.message);}};
 $('addProfile').onclick=()=>editProfile(null);$('closeDialog').onclick=()=>$('profileDialog').close();
-$('resetProfileChecks').onclick=async()=>{const button=$('resetProfileChecks');button.disabled=true;try{await api('/api/profiles/reset-checks',{});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}};
-$('profileForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;message('profileError','');try{const data=Object.fromEntries(new FormData(e.target));data.enabled=e.target.elements.enabled.checked;data.priority=Number(data.priority);data.revision=editRevision;if(editing)data.id=editing;if(!await confirmAction('Применить профиль и перезапустить Xray?','Применить'))return;message('profileError','Применение…');await api('/api/profiles/'+(editing?'edit':'add'),data);$('profileDialog').close();await refresh();}catch(error){message('profileError',error.message);}finally{b.disabled=false;}});
+$('resetProfileChecks').onclick=async()=>{if(!canManage())return;const button=$('resetProfileChecks');button.disabled=true;try{await api('/api/profiles/reset-checks',{});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}};
+$('profileForm').addEventListener('submit',async e=>{e.preventDefault();if(!canManage())return;const b=e.submitter;b.disabled=true;message('profileError','');try{const data=Object.fromEntries(new FormData(e.target));data.enabled=e.target.elements.enabled.checked;data.priority=Number(data.priority);data.revision=editRevision;if(editing)data.id=editing;if(!await confirmAction('Применить профиль и перезапустить Xray?','Применить'))return;message('profileError','Применение…');await api('/api/profiles/'+(editing?'edit':'add'),data);$('profileDialog').close();await refresh();}catch(error){message('profileError',error.message);}finally{b.disabled=false;}});
 $('routerForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{const data=await api('/api/routeros',Object.fromEntries(new FormData(e.target)));$('routerOutput').value=data.script;$('routerOutput').dataset.warnings=(data.warnings||[]).join(' ');$('copyRouter').disabled=false;message('copyStatus',()=>[t('Скрипт сформирован'),...(data.warnings||[]).map(value=>t(value))].join(' '));}catch(error){notice(error.message);}finally{b.disabled=false;}});
 $('copyRouter').onclick=async()=>{try{if(navigator.clipboard && window.isSecureContext){await navigator.clipboard.writeText($('routerOutput').value);}else{$('routerOutput').focus();$('routerOutput').select();if(!document.execCommand('copy'))throw new Error('copy');}message('copyStatus',()=>[t('Скрипт скопирован'),t($('routerOutput').dataset.warnings||'')].filter(Boolean).join(' '));}catch(e){message('copyStatus','Не удалось скопировать скрипт');}};
 let editingList = null, editingListVersion = 0, listOptions = '';
 function listCount(n){if(window.I18n.language()==='en')return n+' '+(n===1?'entry':'entries');const mod=n%100;return n+' '+(mod>=11&&mod<=14?'записей':n%10===1?'запись':n%10>=2&&n%10<=4?'записи':'записей');}
 function renderIpLists(){
  const lists=state.ip_lists||[];
- $('ipListCards').innerHTML=lists.length?lists.map(item=>`<article class="ip-list-card"><div class="card-top"><h2>${esc(item.name)}</h2><span class="list-count mono">${listCount(item.addresses.length)}</span></div><div class="ip-preview mono">${item.addresses.slice(0,3).map(esc).join(', ')||t('Пустой список')}</div><div class="ip-actions"><button class="secondary" data-list-edit="${item.id}">${t('Изменить')}</button><button class="text-button" data-list-route="${item.id}">${t('В RouterOS')}</button><button class="text-button danger" data-list-delete="${item.id}">${t('Удалить')}</button></div></article>`).join(''):`<p class="muted">${t('Списков нет')}</p>`;
+ $('ipListCards').innerHTML=lists.length?lists.map(item=>`<article class="ip-list-card"><div class="card-top"><h2>${esc(item.name)}</h2><span class="list-count mono">${listCount(item.addresses.length)}</span></div><div class="ip-preview mono">${item.addresses.slice(0,3).map(esc).join(', ')||t('Пустой список')}</div><div class="ip-actions">${canManage()?`<button class="secondary" data-list-edit="${item.id}">${t('Изменить')}</button><button class="text-button" data-list-route="${item.id}">${t('В RouterOS')}</button><button class="text-button danger" data-list-delete="${item.id}">${t('Удалить')}</button>`:`<button class="secondary" data-list-view="${item.id}">${t('Просмотр списка')}</button>`}</div></article>`).join(''):`<p class="muted">${t('Списков нет')}</p>`;
  const options=`<option value="">${window.I18n.t('Вручную')}</option>`+lists.map(item=>`<option value="${item.id}">${esc(item.name)} (${item.addresses.length})</option>`).join('');
  if(options!==listOptions){const previous=$('routerList').value,first=!listOptions;$('routerList').innerHTML=options;if(lists.some(item=>item.id===previous))$('routerList').value=previous;else if(first&&lists.length)$('routerList').value=lists[0].id;listOptions=options;}
  $('manualDestinations').hidden=Boolean($('routerList').value);
 }
 function editIpList(identifier){
- const item=(state.ip_lists||[]).find(item=>item.id===identifier);
+ const item=(state.ip_lists||[]).find(item=>item.id===identifier);if(!canManage()&&!item)return;
  editingList=identifier;editingListVersion=item?.version||0;
- $('ipListForm').reset();$('ipListForm').elements.name.value=item?.name||'';
+ $('ipListForm').reset();const name=$('ipListForm').elements.namedItem('name');name.value=item?.name||'';name.readOnly=!canManage();$('ipAddresses').readOnly=!canManage();$('saveIpList').hidden=!canManage();$('saveIpList').disabled=!canManage();$('importIps').hidden=!canManage();$('ipFile').disabled=!canManage();
  $('ipAddresses').value=item?.addresses.join('\n')||'';
- $('ipListTitle').textContent=t(item?'Редактирование списка':'Новый список');
+ $('ipListTitle').textContent=t(!canManage()?'Просмотр списка':item?'Редактирование списка':'Новый список');
  message('ipListError','');$('ipListDialog').showModal();
 }
 async function copyText(value){
@@ -107,18 +108,18 @@ $('closeIpList').onclick=()=>$('ipListDialog').close();
 $('routerList').onchange=()=>{$('manualDestinations').hidden=Boolean($('routerList').value);};
 document.addEventListener('click',async event=>{
  const button=event.target.closest('button');if(!button)return;
- if(button.dataset.listEdit)editIpList(button.dataset.listEdit);
- if(button.dataset.listRoute)await window.Management.startJob('apply',button.dataset.listRoute);
- if(button.dataset.listDelete)await window.Management.startJob('delete',button.dataset.listDelete);
+ if(button.dataset.listEdit||button.dataset.listView)editIpList(button.dataset.listEdit||button.dataset.listView);
+ if(button.dataset.listRoute&&canManage())await window.Management.startJob('apply',button.dataset.listRoute);
+ if(button.dataset.listDelete&&canManage())await window.Management.startJob('delete',button.dataset.listDelete);
 });
 $('ipListForm').addEventListener('submit',async event=>{
- event.preventDefault();const button=event.submitter;button.disabled=true;message('ipListError','');
+ event.preventDefault();if(!canManage())return;const button=event.submitter;button.disabled=true;message('ipListError','');
  try{const data=Object.fromEntries(new FormData(event.target));if(editingList){data.id=editingList;data.version=editingListVersion;}
  await api('/api/ip-lists/'+(editingList?'edit':'add'),data);$('ipListDialog').close();await refresh();}
  catch(error){message('ipListError',error.message);}finally{button.disabled=false;}
 });
-$('importIps').onclick=()=>$('ipFile').click();
-$('ipFile').onchange=async()=>{const file=$('ipFile').files[0];if(!file)return;if(file.size>200000){message('ipListError','Размер файла превышает 200 КБ');return;}$('ipAddresses').value=await file.text();$('ipFile').value='';};
+$('importIps').onclick=()=>{if(canManage())$('ipFile').click();};
+$('ipFile').onchange=async()=>{if(!canManage())return;const file=$('ipFile').files[0];if(!file)return;if(file.size>200000){message('ipListError','Размер файла превышает 200 КБ');return;}$('ipAddresses').value=await file.text();$('ipFile').value='';};
 $('copyIps').onclick=async()=>{try{await copyText($('ipAddresses').value);message('ipListError','');}catch(error){message('ipListError',error.message);}};
 
 const routingKeys = ['gateway','host','source','interface','local_networks'];
@@ -190,7 +191,7 @@ document.addEventListener('languagechange',()=>{
  selectPage(page);
  if(state)render();
  $('dialogTitle').textContent=t(editing?'Редактирование профиля':'Новый профиль');
- $('ipListTitle').textContent=t(editingList?'Редактирование списка':'Новый список');
+ $('ipListTitle').textContent=t(!canManage()?'Просмотр списка':editingList?'Редактирование списка':'Новый список');
  $('userDialogTitle').textContent=t(editingUser?'Редактирование пользователя':'Новый пользователь');
  $('userPasswordLabel').textContent=t(editingUser?'Новый пароль (необязательно)':'Пароль');
  for(const [id,value]of messages)$(id).textContent=typeof value==='function'?value():t(value);

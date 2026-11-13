@@ -212,7 +212,17 @@ context.FormData = class { constructor(form) { this.form=form; } *[Symbol.iterat
 context.fetch = async (url, options) => { assert.equal(url,'/api/settings');assert.equal(JSON.parse(options.body).revision,1);return {ok:false,status:400,json:async()=>({error:'Настройки изменились'})}; };
 await nodes.routingSettingsForm.listeners.submit({preventDefault(){},submitter:{disabled:false},target:nodes.routingSettingsForm});
 assert.equal(nodes.routingSettingsStatus.textContent,'Настройки изменились');
-vm.runInContext("state.user.role='operator'; state.users=[]; renderSettings();", context);
+vm.runInContext("state.user.role='operator'; state.users=[]; render();", context);
+for(const id of ['addProfile','resetProfileChecks','addIpList','profileActionsHeader'])assert.equal(nodes[id].hidden,true);
+assert.ok(!nodes.profileRows.innerHTML.includes('data-edit='));assert.ok(!nodes.profileRows.innerHTML.includes('data-delete='));
+assert.ok(nodes.ipListCards.innerHTML.includes('data-list-view='));
+for(const action of ['data-list-edit=','data-list-route=','data-list-delete='])assert.ok(!nodes.ipListCards.innerHTML.includes(action));
+vm.runInContext("editIpList('project')",context);
+assert.equal(nodes.ipAddresses.readOnly,true);assert.equal(nodes.ipListForm.elements.name.readOnly,true);
+assert.equal(nodes.saveIpList.hidden,true);assert.equal(nodes.importIps.hidden,true);
+assert.equal(nodes.ipAddresses.value,'1.1.1.1\n2606:4700:4700::1111');
+assert.equal(nodes.ipListTitle.textContent,'Просмотр списка');
+nodes.ipListDialog.close();nodes.addIpList.onclick();assert.equal(nodes.ipListDialog.open,false);
 assert.equal(nodes.routingSettingsForm.hidden,true);
 assert.equal(nodes.probeSettingsForm.hidden,true);
 assert.equal(nodes.usersSettings.hidden,true);
@@ -225,6 +235,9 @@ assert.equal(nodes.accountPage.hidden,false);
 assert.equal(nodes.settingsToggle.hidden,true);
 for(const key of settingsNames)assert.equal(nodes['settingsPanel-'+key].hidden,true);
 vm.runInContext("state.user.role='admin'; state.history=[{at:1,uplink_bps:0,downlink_bps:0}]; renderTraffic();",context);
+vm.runInContext("render();editIpList('project');",context);
+assert.equal(nodes.ipAddresses.readOnly,false);assert.equal(nodes.saveIpList.hidden,false);assert.equal(nodes.importIps.hidden,false);
+nodes.ipListDialog.close();
 assert.equal((nodes.trafficMarkers.innerHTML.match(/<circle /g)||[]).length,2);
 assert.equal(nodes.downArea.attributes.d,'');
 // Curves and their control points stay inside the plot, including sharp spikes and flat intervals.
@@ -282,6 +295,7 @@ context.fetch=async(url,options)=>{
  }
  assert.equal(url,'/api/state');return{ok:true,json:async()=>resetState};
 };
+vm.runInContext(`state = ${JSON.stringify(sample)};`,context);
 await nodes.resetProfileChecks.onclick();
 assert.ok(resetCalled);assert.equal(nodes.resetProfileChecks.disabled,false);
 assert.ok(nodes.profileRows.innerHTML.includes('0 / 0'));
@@ -332,6 +346,15 @@ routerConfig={...routerConfig,auth:'password',passphrase_set:false};context.wind
 await new Promise(resolve=>setImmediate(resolve));
 assert.equal(nodes.routerConnectionForm.elements.password.value,'');assert.ok(nodes.routerConnectionForm.elements.password.placeholder.startsWith('•'));
 assert.equal(nodes.routerConnectionForm.elements.private_key.placeholder,'');assert.equal(nodes.routerConnectionForm.elements.passphrase.placeholder,'');
+vm.runInContext("state.user.role='operator';render();editIpList('project');",context);
+let copiedList='';const previousCopy=context.navigator.clipboard.writeText;
+context.navigator.clipboard.writeText=async value=>{copiedList=value;};
+await nodes.copyIps.onclick();assert.equal(copiedList,'1.1.1.1\n2606:4700:4700::1111');
+const readOnlyCalls=calls.length;
+await nodes.ipListForm.listeners.submit({preventDefault(){},submitter:{disabled:false},target:nodes.ipListForm});
+await context.window.Management.startJob('apply','project');assert.equal(calls.length,readOnlyCalls);
+context.navigator.clipboard.writeText=previousCopy;nodes.ipListDialog.close();
+vm.runInContext("state.user.role='admin';render();",context);
 assert.equal(nodes.headerInitials.textContent,'A');
 nodes.accountToggle.onclick();assert.equal(nodes.accountPage.hidden,false);
 nodes.accountProfileForm.dataset.dirty='1';nodes.accountProfileForm.elements.display_name.value='Unsaved name';

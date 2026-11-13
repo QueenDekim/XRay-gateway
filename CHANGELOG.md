@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Read-only shared data for users, with full-list viewing and copying;
+  administrators retain profile, list and RouterOS management.
 - Mixed domain, IPv4 and IPv6 lists with native RouterOS DNS entries and scoped
   cleanup of static and dynamic entries.
 - Automatic RouterOS terminal connection and compact Contour import controls.

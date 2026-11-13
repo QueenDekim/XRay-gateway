@@ -32,14 +32,17 @@ duplicates. Import text files or paste a NetLens export. Copy operations include
 the full list. Enter hostnames such as `www.example.com`, without URL schemes,
 ports or wildcard prefixes. Internationalized names use IDNA encoding.
 
-Use To RouterOS to install or replace a list after confirming the operation.
+As an administrator, use To RouterOS to install or replace a list after confirming the operation.
 The panel shows the SSH import log. Deleting a list removes its owned router
 resources before deleting the panel record. A failed cleanup leaves the record
 available for retry. Configure the SSH connection first; see [RouterOS](routeros.md).
 
 Settings has Routing, Checks, RouterOS and Users tabs. Administrators
-manage common settings, router access and accounts. Operators manage profiles
-and IP lists, including confirmed router operations. Passwords require
+manage common settings, router access, profiles, lists and accounts. Users with
+the `operator` role have read-only access to shared data. They can view and copy
+full lists; changing lists or profiles, resetting counters and writing to
+RouterOS require an administrator. Users can change their own password,
+avatar, display name, appearance and 2FA settings. Passwords require
 8 to 1024 characters. The panel protects the last administrator and prevents
 self-deletion.
 

@@ -38,7 +38,7 @@ the encrypted file cannot recover the connection.
 
 ## Install and update a list
 
-Set the client subnet, LAN interface, gateway and bypass networks under Settings
+As an administrator, set the client subnet, LAN interface, gateway and bypass networks under Settings
 → Routing. Create an IP list and choose To RouterOS. Confirm the operation and
 follow its log. The panel uploads a temporary script over SFTP, imports it over
 SSH and removes the upload. Operations run one at a time; a busy list cannot be

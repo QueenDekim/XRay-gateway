@@ -114,6 +114,28 @@ class ManagementTests(unittest.TestCase):
             self.assertEqual(self.request(path,{},operator)[0],403,path)
         self.assertEqual(self.request('/api/routeros/config',headers=operator)[0],403)
 
+    def test_users_have_read_only_shared_data_but_can_update_their_account(self):
+        _,created,_=self.request('/api/ip-lists/add',{'name':'Shared','addresses':'example.com\n1.1.1.1'},self.headers)
+        item=created['list']
+        self.request('/api/users/add',{'username':'reader','password':'reader-password','role':'operator'},self.headers)
+        reader=self.panel.auth('reader','reader-password')
+        service=RouterService(self.c);self.c.router_service=service;service.start=Mock()
+        before=self.c.ip_lists()
+        paths=['/api/ip-lists/'+action for action in ('add','edit','delete')]
+        paths+=['/api/profiles/'+action for action in ('add','edit','delete','reset-checks')]
+        paths+=['/api/routeros/'+action for action in ('apply','config','host-key','terminal/open','terminal/input','terminal/resize','terminal/close')]
+        paths+=['/api/users/add','/api/users/edit','/api/users/delete','/api/settings']
+        with patch.object(self.c,'change_ip_list') as lists,patch.object(self.c,'change') as profiles,patch.object(self.c,'reset_profile_checks') as counters:
+            for path in paths:
+                with self.subTest(path=path):
+                    self.assertEqual(self.request(path,item|{'role':'admin','addresses':'8.8.8.8'},reader)[0],403)
+            lists.assert_not_called();profiles.assert_not_called();counters.assert_not_called();service.start.assert_not_called()
+        status,state,_=self.request('/api/state',headers=reader)
+        self.assertEqual(status,200);self.assertIn(item,state['ip_lists']);self.assertEqual(self.c.ip_lists(),before)
+        self.assertEqual(self.request('/api/routeros',{'list_id':item['id']},reader)[0],200)
+        status,result,_=self.request('/api/account/profile',{'display_name':'Reader','preferences':{'design':'paper'}},reader)
+        self.assertEqual(status,200);self.assertEqual(result['user']['role'],'operator')
+
     def test_terminal_open_closes_connection_if_panel_session_was_revoked(self):
         service=RouterService(self.c);self.c.router_service=service
         def open_terminal(*args):self.panel.handler.sessions.clear();return {'id':'late-terminal'}

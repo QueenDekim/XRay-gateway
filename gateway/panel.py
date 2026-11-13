@@ -172,6 +172,10 @@ class Panel(http.server.BaseHTTPRequestHandler):
             if not hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), session['csrf']):
                 self.respond(403, {'error': 'Недействительный CSRF-токен.'})
                 return
+            shared_write=path=='/api/settings' or path.startswith(('/api/profiles/','/api/ip-lists/','/api/routeros/','/api/users/'))
+            if shared_write and session['user']['role']!='admin':
+                self.respond(403,{'error':'Требуются права администратора.'})
+                return
             if path == '/api/logout':
                 with self.controller.lock:
                     self.sessions.pop(token, None)

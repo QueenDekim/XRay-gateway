@@ -4,7 +4,8 @@
  let routerLoaded=false,jobTimer,jobId='',jobCursor=0,jobLines=[],sshId='',sshCursor=0,sshTimer,terminal,fit,sshSending=Promise.resolve();
  const jobState=value=>t(({queued:'В очереди',running:'Выполняется',done:'Завершено',error:'Ошибка'})[value]||value);
  const owns=['profile','appearance','security'];
- function passwordStep(){challenge='';$('loginFactor').hidden=true;$('loginCode').value='';$('loginCode').required=false;for(const name of ['username','password']){const field=$('loginForm').elements.namedItem(name);field.disabled=false;field.required=true;}}
+ function resetFactor(){challenge='';$('loginCode').value='';message('loginFactorError','');}
+ function passwordStep(){resetFactor();if($('loginFactorDialog').open)$('loginFactorDialog').close();for(const name of ['username','password']){const field=$('loginForm').elements.namedItem(name);field.disabled=false;field.required=true;}}
  function selectAccount(name,focus=false){accountTab=owns.includes(name)?name:'profile';for(const key of owns){$('accountPanel-'+key).hidden=key!==accountTab;const b=$('accountTab-'+key);b.setAttribute('aria-selected',String(key===accountTab));b.tabIndex=key===accountTab?0:-1;}if(focus)$('accountTab-'+accountTab).focus();}
  function image(user,prefix){const img=$(prefix==='header'?'headerAvatar':'accountAvatar'),letters=$(prefix==='header'?'headerInitials':'accountInitials');letters.textContent=(user.display_name||user.username||'').split(/\s+/).map(v=>Array.from(v)[0]||'').join('').slice(0,2).toUpperCase();img.hidden=!user.avatar;letters.hidden=!!user.avatar;if(user.avatar&&img.getAttribute('src')!==user.avatar)img.setAttribute('src',user.avatar);img.onerror=()=>{img.hidden=true;letters.hidden=false;};}
  function render(){
@@ -20,19 +21,27 @@
  function clear(){
   passwordStep();appliedUser='';routerLoaded=false;clearTimeout(preferenceTimer);clearTimeout(jobTimer);clearTimeout(sshTimer);jobId='';sshId='';
   for(const id of ['accountProfileForm','routerConnectionForm'])delete $(id).dataset.dirty;
-  $('loginFactor').hidden=true;$('loginCode').value='';for(const id of ['factorSetupForm','factorEnableForm','factorManageForm','accountProfileForm','routerConnectionForm'])$(id).reset();
+  for(const id of ['factorSetupForm','factorEnableForm','factorManageForm','accountProfileForm','routerConnectionForm'])$(id).reset();
   $('recoveryCodes').value='';$('factorRecovery').hidden=true;$('factorEnrollment').hidden=true;message('factorSecret','');$('factorQr').removeAttribute('src');if(terminal)terminal.reset();
  }
  async function login(event){
-  const button=event.submitter;button.disabled=true;message('loginError','');
+  const button=event.submitter;button.disabled=true;message('loginError','');passwordStep();
   try{
-   const data=challenge?{challenge,code:$('loginCode').value.trim()}:Object.fromEntries(new FormData(event.target));
-   const result=await api(challenge?'/api/login/2fa':'/api/login',data);
-   if(result.requires_2fa){challenge=result.challenge;$('loginFactor').hidden=false;for(const name of ['username','password'])event.target.elements.namedItem(name).required=false;$('loginCode').required=true;$('loginCode').focus();return;}
-   event.target.reset();passwordStep();await refresh();
+   const result=await api('/api/login',Object.fromEntries(new FormData(event.target)));
+   if(result.requires_2fa){challenge=result.challenge;$('loginFactorDialog').showModal();$('loginCode').focus();return;}
+   event.target.reset();await refresh();
   }catch(error){message('loginError',error.message);}finally{button.disabled=false;}
  }
- $('loginBack').onclick=()=>{passwordStep();message('loginError','');$('loginForm').elements.password.focus();};
+ $('loginFactorForm').addEventListener('submit',async event=>{
+  event.preventDefault();const button=event.submitter;button.disabled=true;message('loginFactorError','');
+  try{
+   if(!challenge){passwordStep();message('loginError','Вход истёк. Введите логин и пароль заново.');return;}
+   await api('/api/login/2fa',{challenge,code:$('loginCode').value.trim()});
+   $('loginForm').reset();passwordStep();await refresh();
+  }catch(error){message('loginFactorError',error.message);}finally{button.disabled=false;}
+ });
+ $('loginBack').onclick=()=>{passwordStep();$('loginForm').elements.password.focus();};
+ $('loginFactorDialog').addEventListener('close',()=>{if(!$('loginFactorDialog').open)resetFactor();});
  $('loginForm').addEventListener('input',event=>{if(challenge&&['username','password'].includes(event.target.name)){passwordStep();message('loginError','');}});
  $('accountToggle').onclick=()=>selectPage('account');
  $('accountTabs').addEventListener('click',event=>{const b=event.target.closest('button');if(b?.dataset.accountTab)selectAccount(b.dataset.accountTab);});

@@ -67,7 +67,10 @@ Scan the QR code with a TOTP authenticator, then enter its six-digit code to
 enable protection. Save the ten recovery codes before leaving the page.
 Each recovery code works once; the panel stores only their hashes.
 
-At sign-in, enter your password followed by an authenticator or recovery code.
+At sign-in, enter your username and password, then choose Sign in. For an account
+with 2FA, the panel opens a dialog for an authenticator or recovery code.
+Canceling the dialog preserves your entered credentials. Accounts without 2FA
+open the panel after the password check.
 An accepted TOTP code cannot be reused. The panel limits attempts and expires
 unfinished sign-ins after three minutes. Keep the server clock synchronized.
 

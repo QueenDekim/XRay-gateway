@@ -1,0 +1,39 @@
+<section id="settingsPage" class="page">
+  <div class="heading"><h1 data-i18n="Настройки">Настройки</h1></div>
+  <div id="settingsTabs" class="settings-tabs" role="tablist" aria-label="Разделы настроек" data-i18n-aria="Разделы настроек"><button id="settingsTab-routing" data-settings-tab="routing" role="tab" type="button" aria-controls="settingsPanel-routing" aria-selected="false" tabindex="-1" data-i18n="Маршрутизация">Маршрутизация</button><button id="settingsTab-probes" data-settings-tab="probes" role="tab" type="button" aria-controls="settingsPanel-probes" aria-selected="false" tabindex="-1" data-i18n="Проверки">Проверки</button><button id="settingsTab-router" data-settings-tab="router" role="tab" type="button" aria-controls="settingsPanel-router" aria-selected="false" tabindex="-1" data-i18n="Подключение RouterOS">Подключение RouterOS</button><button id="settingsTab-users" data-settings-tab="users" role="tab" type="button" aria-controls="settingsPanel-users" aria-selected="false" tabindex="-1" data-i18n="Пользователи">Пользователи</button><button id="settingsTab-updates" data-settings-tab="updates" role="tab" type="button" aria-controls="settingsPanel-updates" aria-selected="false" tabindex="-1" data-i18n="Обновления">Обновления</button></div>
+
+  <section id="settingsPanel-routing" class="settings-form-panel" role="tabpanel" aria-labelledby="settingsTab-routing" hidden>
+   <form id="routingSettingsForm" class="panel" hidden><h2 data-i18n="Параметры RouterOS">Параметры RouterOS</h2>
+    <label><span data-i18n="IP контейнера">IP контейнера</span><input name="gateway" value="" required></label>
+    <label><span data-i18n="IP Docker-хоста — исключение">IP Docker-хоста — исключение</span><input name="host" value="" required></label>
+    <label><span data-i18n="Клиент или подсеть по умолчанию">Клиент или подсеть по умолчанию</span><input name="source" value="" required></label>
+    <label><span data-i18n="LAN-интерфейс">LAN-интерфейс</span><input name="interface" value="" required></label>
+    <label><span data-i18n="Локальные сети">Локальные сети</span><textarea name="local_networks" rows="3" spellcheck="false"></textarea></label>
+    <p id="routingSettingsStatus" class="form-status" role="status"></p><button class="primary" type="submit" data-i18n="Сохранить параметры">Сохранить параметры</button>
+   </form>
+  </section>
+  <section id="settingsPanel-probes" class="settings-form-panel" role="tabpanel" aria-labelledby="settingsTab-probes" hidden>
+   <form id="probeSettingsForm" class="panel" hidden><h2 data-i18n="Проверки профилей">Проверки профилей</h2>
+    <label><span data-i18n="URL проверки — ответ HTTP 204">URL проверки — ответ HTTP 204</span><input name="probe_url" type="url" value="https://www.gstatic.com/generate_204" required></label>
+    <label><span data-i18n="Интервал, секунды">Интервал, секунды</span><input name="check_interval" type="number" min="5" max="3600" value="10" required></label>
+    <label><span data-i18n="Ошибок до переключения">Ошибок до переключения</span><input name="fail_threshold" type="number" min="1" max="100" value="3" required></label>
+    <label><span data-i18n="Успехов до восстановления">Успехов до восстановления</span><input name="recover_threshold" type="number" min="1" max="100" value="2" required></label>
+    <p id="probeSettingsStatus" class="form-status" role="status"></p><button class="primary" type="submit" data-i18n="Сохранить проверки">Сохранить проверки</button>
+   </form>
+  </section>
+
+  <section id="settingsPanel-router" class="settings-form-panel" role="tabpanel" aria-labelledby="settingsTab-router" hidden><form id="routerConnectionForm" class="panel">
+ <h2 data-i18n="Подключение RouterOS">Подключение RouterOS</h2><p id="routerConnectionState" role="status"></p>
+ <div class="form-pair"><label><span data-i18n="Адрес RouterOS">Адрес RouterOS</span><input name="host" required></label><label><span data-i18n="SSH-порт">SSH-порт</span><input name="port" type="number" min="1" max="65535" required></label></div>
+ <label><span data-i18n="SSH-логин">SSH-логин</span><input name="username" autocomplete="off" required></label><label><span data-i18n="Авторизация">Авторизация</span><select id="routerAuth" name="auth"><option value="key" data-i18n="SSH-ключ">SSH-ключ</option><option value="password" data-i18n="Пароль">Пароль</option></select></label>
+ <div id="routerKeyFields"><label><span data-i18n="Приватный SSH-ключ">Приватный SSH-ключ</span><textarea name="private_key" rows="5" spellcheck="false" autocomplete="off"></textarea></label><label><span data-i18n="Пароль ключа">Пароль ключа</span><input name="passphrase" type="password" autocomplete="off"></label></div>
+ <label id="routerPasswordField" hidden><span data-i18n="SSH-пароль">SSH-пароль</span><input name="password" type="password" autocomplete="new-password"></label>
+ <label><span data-i18n="Отпечаток SSH-сервера">Отпечаток SSH-сервера</span><input name="fingerprint" readonly required></label><button id="routerScanKey" type="button" class="secondary" data-i18n="Получить отпечаток">Получить отпечаток</button>
+ <p id="routerConnectionStatus" class="form-status" role="status"></p><button class="primary" type="submit" data-i18n="Сохранить и проверить">Сохранить и проверить</button></form></section>
+ <section id="settingsPanel-users" role="tabpanel" aria-labelledby="settingsTab-users" hidden>
+  <section id="usersSettings" class="users-settings" hidden><div class="section-heading spaced"><h2 data-i18n="Пользователи">Пользователи</h2><button id="addUser" class="primary" data-i18n="Создать пользователя">Создать пользователя</button></div>
+   <div class="table-wrap users-table"><table><thead><tr><th data-i18n="Логин">Логин</th><th data-i18n="Роль">Роль</th><th></th></tr></thead><tbody id="userRows"></tbody></table></div>
+  </section>
+  </section>
+ <section id="settingsPanel-updates" class="settings-form-panel" role="tabpanel" aria-labelledby="settingsTab-updates" hidden><section class="panel updates-panel"><div class="section-heading"><h2 data-i18n="Обновления">Обновления</h2><button id="checkUpdates" class="secondary" type="button" data-i18n="Проверить обновления">Проверить обновления</button></div><dl class="update-versions"><div><dt data-i18n="Текущая версия">Текущая версия</dt><dd id="updateCurrent" class="mono"></dd></div><div><dt data-i18n="Новая версия">Новая версия</dt><dd id="updateAvailable" class="mono"></dd></div></dl><p id="updatesStatus" role="status"></p><button id="installUpdate" class="primary" type="button" disabled data-i18n="Обновить">Обновить</button><form id="updateSettingsForm"><label class="checkbox"><input id="autoInstallUpdates" name="auto_install" type="checkbox"><span data-i18n="Устанавливать обновления автоматически">Устанавливать обновления автоматически</span></label><label><span data-i18n="Интервал проверки, часов">Интервал проверки, часов</span><input id="updateCheckInterval" name="check_interval_hours" type="number" min="1" max="168" value="6" required></label><button type="submit" class="secondary" data-i18n="Сохранить">Сохранить</button><p id="updateSettingsStatus" role="status"></p></form></section><section id="updateJobPanel" class="panel" hidden><h2 data-i18n="Ход обновления">Ход обновления</h2><p id="updateJobStatus" role="status"></p><pre id="updateJobLog" class="operation-log" tabindex="0"></pre></section></section>
+</section>

@@ -1,0 +1,26 @@
+<h2 data-i18n="Обновления">Обновления</h2>
+<p data-i18n="Проверка выбирает более новую версию с опубликованными образами Gateway и Updater. Установка использует закреплённые digest, сохраняет данные, пересоздаёт Compose-сервисы и выполняет откат при неуспешной проверке.">Проверка выбирает более новую версию с опубликованными образами Gateway и Updater. Установка использует закреплённые digest, сохраняет данные, пересоздаёт Compose-сервисы и выполняет откат при неуспешной проверке.</p>
+<p data-i18n="Автоустановка по умолчанию отключена, периодическая проверка включена. Настройте отдельную службу updater; Docker socket доступен только ей, а не панели. Во время установки операции записи возвращают 503.">Автоустановка по умолчанию отключена, периодическая проверка включена. Настройте отдельную службу updater; Docker socket доступен только ей, а не панели. Во время установки операции записи возвращают 503.</p>
+<section class="api-endpoint" id="updates-1"><h3><code>GET</code> <code>/api/updates</code></h3><span class="api-role">user</span>
+<p data-i18n="Текущая и доступная версии, время проверки, подключение службы и задание. Настройки и подробный журнал доступны администратору.">Текущая и доступная версии, время проверки, подключение службы и задание. Настройки и подробный журнал доступны администратору.</p>
+</section>
+<section class="api-endpoint" id="updates-2"><h3><code>POST</code> <code>/api/updates/check</code></h3><span class="api-role">admin</span>
+<p data-i18n="Запускает проверку в фоне и возвращает 202. Повторные проверки ограничены одной в минуту.">Запускает проверку в фоне и возвращает 202. Повторные проверки ограничены одной в минуту.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{}</code></pre>
+</section>
+<section class="api-endpoint" id="updates-3"><h3><code>POST</code> <code>/api/updates/settings</code></h3><span class="api-role">admin</span>
+<p data-i18n="Период проверки: от 1 до 168 часов. auto_install управляет автоматической установкой.">Период проверки: от 1 до 168 часов. auto_install управляет автоматической установкой.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;check_interval_hours&quot;: 6,
+  &quot;auto_install&quot;: false
+}</code></pre>
+</section>
+<section class="api-endpoint" id="updates-4"><h3><code>POST</code> <code>/api/updates/install</code></h3><span class="api-role">admin</span>
+<p data-i18n="Устанавливает доступный tag из результата проверки. Возвращает 202 с id задания; читайте /api/updates для хода операции.">Устанавливает доступный tag из результата проверки. Возвращает 202 с id задания; читайте /api/updates для хода операции.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;tag&quot;: &quot;1.9.0-abcdef0&quot;
+}</code></pre>
+<h4 data-i18n="Ответ">Ответ</h4><pre><code>{
+  &quot;id&quot;: &quot;update-job-id&quot;
+}</code></pre>
+</section>

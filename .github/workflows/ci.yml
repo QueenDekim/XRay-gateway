@@ -32,6 +32,10 @@ jobs:
       - run: node --check gateway/web/i18n.js
       - run: node --check gateway/web/management.js
       - run: node --check gateway/web/terminal-stream.js
+      - run: node --check gateway/web/login.js
+      - run: node --check gateway/web/updates.js
+      - run: node scripts/check_page_runtime.mjs
+      - run: node scripts/check_login_frontend.mjs
       - run: node scripts/check_panel_frontend.mjs
       - run: node scripts/check_terminal_emulator.mjs
       - run: python scripts/check_docs.py
@@ -45,11 +49,13 @@ jobs:
         with:
           fetch-depth: 0
       - run: docker build --build-arg SOURCE_REVISION=${{ github.sha }} -f gateway/Dockerfile -t xray-gateway:test .
+      - run: docker build --build-arg SOURCE_REVISION=${{ github.sha }} -f updater/Dockerfile -t xray-gateway-updater:test .
+      - run: python3 scripts/check_updater_integration.py --gateway-image xray-gateway:test --updater-image xray-gateway-updater:test
       - run: python3 scripts/check_vless_transports.py --image xray-gateway:test
       - run: python3 scripts/smoke_container.py --image xray-gateway:test
 
   publish:
-    name: Publish GHCR image
+    name: Publish GHCR images
     needs: [test, image]
     if: github.ref_type == 'tag' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -74,15 +80,20 @@ jobs:
         shell: bash
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          updater="$image-updater"
           version=$(cat VERSION)
           minor="${version%.*}"
           major="${version%%.*}"
           {
             echo "image=$image"
             echo "version=$version"
+            echo "updater=$updater"
             echo 'tags<<IMAGE_TAGS'
             printf '%s\n' "$image:$RELEASE_TAG" "$image:$version" "$image:$minor" "$image:$major" "$image:latest"
             echo 'IMAGE_TAGS'
+            echo 'updater_tags<<UPDATER_TAGS'
+            printf '%s\n' "$updater:$RELEASE_TAG" "$updater:$version" "$updater:$minor" "$updater:$major" "$updater:latest"
+            echo 'UPDATER_TAGS'
           } >> "$GITHUB_OUTPUT"
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
@@ -92,6 +103,26 @@ jobs:
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Build and publish updater
+        id: push_updater
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: updater/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: SOURCE_REVISION=${{ github.sha }}
+          tags: ${{ steps.meta.outputs.updater_tags }}
+          labels: |
+            org.opencontainers.image.title=Xray Gateway Updater
+            org.opencontainers.image.description=Compose update worker for Xray Gateway
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.licenses=Apache-2.0
+          cache-from: type=gha,scope=updater
+          cache-to: type=gha,mode=max,scope=updater
+          provenance: mode=min
       - name: Build and publish
         id: push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -114,11 +145,17 @@ jobs:
           provenance: mode=min
       - name: Verify published image
         env:
+          UPDATER: ${{ steps.meta.outputs.updater }}
+          UPDATER_DIGEST: ${{ steps.push_updater.outputs.digest }}
           IMAGE: ${{ steps.meta.outputs.image }}
           DIGEST: ${{ steps.push.outputs.digest }}
           EXPECTED_REVISION: ${{ github.sha }}
           EXPECTED_TAG: ${{ github.ref_name }}
         run: |
+          docker pull "$UPDATER@$UPDATER_DIGEST"
+          docker run --rm --network none --entrypoint python3 \
+            -e EXPECTED_REVISION -e EXPECTED_TAG "$UPDATER@$UPDATER_DIGEST" \
+            -c 'import os; from version import build_info; info=build_info(); assert info["revision"]==os.environ["EXPECTED_REVISION"]; assert info["tag"]==os.environ["EXPECTED_TAG"]; print(info["version"])'
           docker pull "$IMAGE@$DIGEST"
           docker run --rm --network none --entrypoint python3 \
             -e EXPECTED_REVISION -e EXPECTED_TAG "$IMAGE@$DIGEST" \
@@ -127,6 +164,7 @@ jobs:
             echo '### Published container'
             echo "- Image: \`$IMAGE:$EXPECTED_TAG\`"
             echo "- Digest: \`$DIGEST\`"
+            echo "- Updater: \`$UPDATER:$EXPECTED_TAG\` (\`$UPDATER_DIGEST\`)"
             echo '- Platforms: linux/amd64, linux/arm64'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Log out of GHCR

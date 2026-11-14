@@ -8,16 +8,16 @@ bundled Xray `26.10.21` before applying it.
 
 ## Transports
 
-| Transport | URI `type` | Main URI parameters |
-| --- | --- | --- |
-| RAW/TCP | `tcp`, `raw` | `headerType`, `host`, `path` |
-| XHTTP | `xhttp`, `splithttp` | `path`, `host`, `mode`, `extra` |
-| WebSocket | `ws`, `websocket` | `path`, `host`, `headers`, `ed` |
-| gRPC | `grpc` | `serviceName`, `authority`, `mode=gun` or `mode=multi` |
-| HTTPUpgrade | `httpupgrade` | `path`, `host`, `headers`, `ed` |
-| mKCP | `kcp`, `mkcp` | `mtu`, `tti`, `uplinkCapacity`, `downlinkCapacity`, `cwndMultiplier`, `maxSendingWindow`, `fm` |
-| Hysteria transport | `hysteria` | `version=2`, `auth`, `udpIdleTimeout` |
-| XDrive | `xdrive` | `service`, `remoteFolder`, `secrets`, `xdriveSettings` |
+| Transport          | URI `type`           | Main URI parameters                                                                            |
+| ------------------ | -------------------- | ---------------------------------------------------------------------------------------------- |
+| RAW/TCP            | `tcp`, `raw`         | `headerType`, `host`, `path`                                                                   |
+| XHTTP              | `xhttp`, `splithttp` | `path`, `host`, `mode`, `extra`                                                                |
+| WebSocket          | `ws`, `websocket`    | `path`, `host`, `headers`, `ed`                                                                |
+| gRPC               | `grpc`               | `serviceName`, `authority`, `mode=gun` or `mode=multi`                                         |
+| HTTPUpgrade        | `httpupgrade`        | `path`, `host`, `headers`, `ed`                                                                |
+| mKCP               | `kcp`, `mkcp`        | `mtu`, `tti`, `uplinkCapacity`, `downlinkCapacity`, `cwndMultiplier`, `maxSendingWindow`, `fm` |
+| Hysteria transport | `hysteria`           | `version=2`, `auth`, `udpIdleTimeout`                                                          |
+| XDrive             | `xdrive`             | `service`, `remoteFolder`, `secrets`, `xdriveSettings`                                         |
 
 Hysteria here carries VLESS over the Hysteria transport; it requires TLS. XDrive
 requires VLESS encryption and Mux. Include its encryption value in `encryption`;

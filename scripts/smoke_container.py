@@ -58,6 +58,14 @@ client.open(request).read()
 state=json.load(client.open('http://127.0.0.1:8080/api/state'))
 assert state['username']=='smoke-owner' and state['profiles']==[] and state['ip_lists']==[] and state['ready']
 assert state['settings']['source']=='192.168.50.0/24'
+for page in ['overview','profiles','iplists','routeros','settings','account']:
+ html=client.open('http://127.0.0.1:8080/'+page).read()
+ assert ('id="'+page+'Page"').encode() in html and b'id="loginForm"' not in html
+ assert b'href="/profiles"' in html and b'/updates.js' in html
+for topic in ['authentication','profiles','ip-lists','routeros','terminal','accounts','settings','updates']:
+ assert b'class="wiki-article"' in client.open('http://127.0.0.1:8080/wiki/'+topic).read()
+assert json.load(client.open('http://127.0.0.1:8080/api/updates'))['current']==info['version']
+
 print('Fresh-volume state, authentication, localization and version PASS')
 for asset in ['management.js','terminal-stream.js','vendor/xterm.js','vendor/addon-fit.js','vendor/xterm.css']:
  assert client.open('http://127.0.0.1:8080/'+asset).status==200

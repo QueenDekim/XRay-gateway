@@ -1,0 +1,81 @@
+<h2 data-i18n="Пользователи и безопасность">Пользователи и безопасность</h2>
+<p data-i18n="Пароли содержат от 8 до 1024 символов. Обычный пользователь меняет свою учётную запись, но не общие настройки, профили, списки или подключение RouterOS.">Пароли содержат от 8 до 1024 символов. Обычный пользователь меняет свою учётную запись, но не общие настройки, профили, списки или подключение RouterOS.</p>
+<p data-i18n="Аватар передаётся в base64, допускаются PNG, JPEG и WebP до 2 МБ. Пустая строка удаляет аватар. Секрет TOTP возвращается только при настройке; коды восстановления — при создании.">Аватар передаётся в base64, допускаются PNG, JPEG и WebP до 2 МБ. Пустая строка удаляет аватар. Секрет TOTP возвращается только при настройке; коды восстановления — при создании.</p>
+<section class="api-endpoint" id="accounts-1"><h3><code>POST</code> <code>/api/account/profile</code></h3><span class="api-role">user</span>
+<p data-i18n="Меняет display_name и preferences своей учётной записи.">Меняет display_name и preferences своей учётной записи.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;display_name&quot;: &quot;Operator&quot;,
+  &quot;preferences&quot;: {
+    &quot;language&quot;: &quot;en&quot;,
+    &quot;design&quot;: &quot;titan&quot;,
+    &quot;colorScheme&quot;: &quot;dark&quot;
+  }
+}</code></pre>
+</section>
+<section class="api-endpoint" id="accounts-2"><h3><code>POST</code> <code>/api/account/avatar</code></h3><span class="api-role">user</span>
+<p data-i18n="Сохраняет или удаляет свой аватар.">Сохраняет или удаляет свой аватар.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;image&quot;: &quot;&lt;base64 image bytes&gt;&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="accounts-3"><h3><code>POST</code> <code>/api/password</code></h3><span class="api-role">user</span>
+<p data-i18n="Меняет пароль после проверки текущего.">Меняет пароль после проверки текущего.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;current_password&quot;: &quot;old-password&quot;,
+  &quot;password&quot;: &quot;new-password&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="accounts-4"><h3><code>POST</code> <code>/api/account/2fa/setup</code></h3><span class="api-role">user</span>
+<p data-i18n="Создаёт временный секрет и URI настройки после проверки пароля.">Создаёт временный секрет и URI настройки после проверки пароля.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;password&quot;: &quot;current-password&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="accounts-5"><h3><code>GET</code> <code>/api/account/2fa/qr</code></h3><span class="api-role">user</span>
+<p data-i18n="PNG QR-код незавершённой настройки.">PNG QR-код незавершённой настройки.</p>
+</section>
+<section class="api-endpoint" id="accounts-6"><h3><code>POST</code> <code>/api/account/2fa/enable</code></h3><span class="api-role">user</span>
+<p data-i18n="Включает TOTP и выдаёт коды восстановления.">Включает TOTP и выдаёт коды восстановления.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;code&quot;: &quot;123456&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="accounts-7"><h3><code>POST</code> <code>/api/account/2fa/disable</code></h3><span class="api-role">user</span>
+<p data-i18n="Отключает TOTP после проверки пароля и кода.">Отключает TOTP после проверки пароля и кода.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;password&quot;: &quot;current-password&quot;,
+  &quot;code&quot;: &quot;123456&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="accounts-8"><h3><code>POST</code> <code>/api/account/2fa/recovery</code></h3><span class="api-role">user</span>
+<p data-i18n="Пересоздаёт одноразовые коды восстановления.">Пересоздаёт одноразовые коды восстановления.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;password&quot;: &quot;current-password&quot;,
+  &quot;code&quot;: &quot;123456&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="accounts-9"><h3><code>POST</code> <code>/api/users/add</code></h3><span class="api-role">admin</span>
+<p data-i18n="Создаёт пользователя с role admin или operator.">Создаёт пользователя с role admin или operator.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;username&quot;: &quot;reader&quot;,
+  &quot;password&quot;: &quot;example-password&quot;,
+  &quot;role&quot;: &quot;operator&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="accounts-10"><h3><code>POST</code> <code>/api/users/edit</code></h3><span class="api-role">admin</span>
+<p data-i18n="Меняет пользователя по id и revision. Пустой пароль сохраняет прежний.">Меняет пользователя по id и revision. Пустой пароль сохраняет прежний.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;id&quot;: &quot;user-id&quot;,
+  &quot;revision&quot;: 1,
+  &quot;username&quot;: &quot;reader&quot;,
+  &quot;password&quot;: &quot;&quot;,
+  &quot;role&quot;: &quot;operator&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="accounts-11"><h3><code>POST</code> <code>/api/users/delete</code></h3><span class="api-role">admin</span>
+<p data-i18n="Удаляет пользователя. Панель защищает последнего администратора и запрещает самоудаление.">Удаляет пользователя. Панель защищает последнего администратора и запрещает самоудаление.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;id&quot;: &quot;user-id&quot;,
+  &quot;revision&quot;: 1
+}</code></pre>
+</section>

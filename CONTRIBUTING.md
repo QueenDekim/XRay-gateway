@@ -12,6 +12,8 @@ npm ci --ignore-scripts
 python -m unittest discover -s tests -v
 node --check gateway/web/app.js
 node --check gateway/web/theme.js
+node scripts/check_page_runtime.mjs
+node scripts/check_login_frontend.mjs
 node scripts/check_panel_frontend.mjs
 node scripts/check_terminal_emulator.mjs
 python scripts/check_docs.py
@@ -19,6 +21,11 @@ python scripts/check_docs.py
 
 The terminal check runs the xterm parser against startup probes and fragmented
 output. It checks first-screen padding, device replies and command scrollback.
+
+On Linux with Docker Engine, build both images and run
+`scripts/check_updater_integration.py --gateway-image <gateway> --updater-image <updater>`
+to exercise container replacement and rollback in an isolated Compose project.
+The test uses synthetic accounts and lists.
 
 Test bootstrap changes against an empty runtime directory and preserve migrations
 for existing accounts and settings. Test routing changes for per-list isolation,

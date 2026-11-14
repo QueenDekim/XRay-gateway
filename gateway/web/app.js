@@ -9,25 +9,31 @@ function successfulChecks(stats){
  return successful<stats.checks&&value==='100.0'?'~99.9%':value+'%';
 }
 const messages = new Map();
-function message(id,value){messages.set(id,value);$(id).textContent=typeof value==='function'?value():t(value);}
+function message(id,value){messages.set(id,value);if($(id))$(id).textContent=typeof value==='function'?value():t(value);}
 let confirmationResolve=null,confirmationAccepted=false;
 function confirmAction(text,label='Подтвердить'){
  if(confirmationResolve)return Promise.resolve(false);
  message('confirmationText',text);message('confirmationAccept',label);confirmationAccepted=false;
  return new Promise(resolve=>{confirmationResolve=resolve;$('confirmationDialog').showModal();$('confirmationCancel').focus();});
 }
-$('confirmationAccept').onclick=()=>{confirmationAccepted=true;$('confirmationDialog').close();};
-$('confirmationCancel').onclick=()=>$('confirmationDialog').close();
-$('confirmationDialog').addEventListener('close',()=>{const resolve=confirmationResolve;confirmationResolve=null;resolve?.(confirmationAccepted);confirmationAccepted=false;message('confirmationText','');});
-let state = null, csrf = '', page = 'overview', editing = null, editRevision = 0;
+if($('confirmationAccept')) $('confirmationAccept').onclick=()=>{confirmationAccepted=true;$('confirmationDialog').close();};
+if($('confirmationCancel')) $('confirmationCancel').onclick=()=>$('confirmationDialog').close();
+if($('confirmationDialog')) $('confirmationDialog').addEventListener('close',()=>{const resolve=confirmationResolve;confirmationResolve=null;resolve?.(confirmationAccepted);confirmationAccepted=false;message('confirmationText','');});
+let state = null, csrf = '', page = document.documentElement.dataset.page||'overview', editing = null, editRevision = 0;
 const fmt = (n, rate = false) => {n = Number(n || 0); const units = ['Б','КиБ','МиБ','ГиБ','ТиБ']; let i=0; while(n>=1024 && i<4){n/=1024;i++;}return `${n.toFixed(i ? 1 : 0)} ${t(units[i])}${rate?t('/с'):''}`;};
 const duration = n => {n=Math.max(0,Math.floor(n));return n>=86400?`${Math.floor(n/86400)} ${t('д')} ${Math.floor(n%86400/3600)} ${t('ч')}`:n>=3600?`${Math.floor(n/3600)} ${t('ч')} ${Math.floor(n%3600/60)} ${t('м')}`:`${Math.floor(n/60)} ${t('м')} ${n%60} ${t('с')}`;};
 const esc = x => String(x ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notice(text){message('notice',text);$('notice').hidden=!text;}
 async function api(path, data){const response=await fetch(path,{method:data?'POST':'GET',headers:{'Accept-Language':window.I18n.language(),...(data?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{})},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(65000)});const body=await response.json();if(!response.ok){if(response.status===401 && !path.startsWith('/api/login')){showLogin();}throw new Error(t(body.error || 'Ошибка запроса'));}return body;}
-function showLogin(){window.Management?.clear();$('loginView').hidden=false;$('appView').hidden=true;state=null;csrf='';for(const d of document.querySelectorAll('dialog[open]'))d.close();for(const id of ['passwordForm','userForm'])$(id).reset();for(const id of ['routingSettingsForm','probeSettingsForm','routerForm']){delete $(id).dataset.revision;delete $(id).dataset.dirty;}}
-async function refresh(){try{const data=await api('/api/state');state=data;csrf=data.csrf;$('loginView').hidden=true;$('appView').hidden=false;render();}catch(e){if(state)notice(e.message);}}
-function selectPage(value){if(value==='routeros'&&!canManage())value='overview';if(value==='settings'&&state?.user?.role!=='admin')value='account';page=value;for(const name of ['overview','profiles','iplists','routeros','settings','account'])$(name+'Page').hidden=name!==value;document.querySelectorAll('nav [data-page], .account-actions [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===value));$('settingsToggle').setAttribute('aria-pressed',String(value==='settings'));$('pageName').textContent=t({overview:'Обзор',profiles:'Профили',iplists:'IP-списки',routeros:'RouterOS',settings:'Настройки',account:'Моя учётная запись'}[value]);window.Management?.page(value);}
+const pagePaths=Object.fromEntries(['overview','profiles','iplists','routeros','settings','account','wiki'].map(name=>[name,'/'+name]));
+function showLogin(){window.Management?.clear();state=null;csrf='';window.location.replace('/login?next='+encodeURIComponent(window.location.pathname+window.location.hash));}
+async function refresh(){try{const data=await api('/api/state');state=data;csrf=data.csrf;render();}catch(e){if(state)notice(e.message);}}
+function activatePage(value){
+ page=value;for(const name of Object.keys(pagePaths)){const section=$(name+'Page');if(section)section.hidden=name!==value;}
+ document.querySelectorAll('nav [data-page], .account-actions [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===value));
+ $('pageName').textContent=t({overview:'Обзор',profiles:'Профили',iplists:'IP-списки',routeros:'RouterOS',settings:'Настройки',account:'Моя учётная запись',wiki:'API Wiki'}[value]);window.Management?.page(value);
+}
+function selectPage(value){if(value==='routeros'&&!canManage())value='overview';if(value==='settings'&&!canManage())value='account';if(value!==page){window.location.assign(pagePaths[value]||'/overview');return;}activatePage(value);}
 function status(p){if(!p.enabled)return ['Выключен','muted-state'];if(!p.health)return ['Проверка','pending'];if(state.checks[p.id]?.healthy)return [state.selected===p.id?'Активен':'Доступен',state.selected===p.id?'is-active':'ready'];return ['Недоступен','bad'];}
 function badge(p){const [label,cls]=status(p);return `<span class="badge ${cls}">${t(label)}</span>`;}
 function profileTransport(p){const name=({tcp:'RAW/TCP',raw:'RAW/TCP',xhttp:'XHTTP',splithttp:'XHTTP',ws:'WebSocket',websocket:'WebSocket',grpc:'gRPC',httpupgrade:'HTTPUpgrade',kcp:'mKCP',mkcp:'mKCP',hysteria:'Hysteria',xdrive:'XDrive'})[p.transport]||p.transport;return name+(p.security?' / '+(p.security==='none'?t('без TLS'):p.security==='tls'?'TLS':p.security==='reality'?'REALITY':p.security):'');}
@@ -50,6 +56,7 @@ function trafficPath(points, mode){
  return path;
 }
 function renderTraffic(){
+ if(!$('downLine'))return;
  const history=trafficSamples(state?.history||[]),design=document.documentElement.dataset.design||'titan';
  const peak=Math.max(1,...history.flatMap(p=>[p.uplink_bps,p.downlink_bps]));
  const points=key=>history.map((p,i)=>({x:history.length===1?500:8+i/(history.length-1)*984,y:278-p[key]/peak*268}));
@@ -80,11 +87,19 @@ function renderProfileGroups(profiles,row,table=false){
   return heading+group.profiles.map(row).join('');
  }).join('');
 }
-function render(){const s=state,totals=s.totals;for(const id of ['addProfile','resetProfileChecks','addIpList','profileActionsHeader','routerNav'])$(id).hidden=!canManage();if(page==='routeros'&&!canManage())selectPage('overview');renderIpLists();renderSettings();notice(s.stats_error || s.last_error || '');$('username').textContent=s.user?.display_name||s.username;$('coreStatus').textContent=t(s.ready?'Xray работает':'Xray недоступен');$('coreStatus').classList.toggle('bad',!s.ready);$('totalDown').textContent=fmt(totals.downlink);$('totalUp').textContent=fmt(totals.uplink);$('downRate').textContent=fmt(totals.downlink_bps,true)+' '+window.I18n.t('сейчас');$('upRate').textContent=fmt(totals.uplink_bps,true)+' '+window.I18n.t('сейчас');$('uptime').textContent=duration(s.uptime);$('profileCount').textContent=window.I18n.t('{0} включено / {1} профилей',s.profiles.filter(p=>p.enabled).length,s.profiles.length);$('selectedName').textContent=s.profiles.find(p=>p.id===s.selected)?.name || 'Direct';$('routeSince').textContent=window.I18n.t('Выбран {0} назад',duration(Date.now()/1000-s.since));$('updated').textContent=window.I18n.t('Обновлено {0}',new Date().toLocaleTimeString(locale()));
- $('overviewProfiles').innerHTML=s.profiles.length?renderProfileGroups(s.profiles,p=>`<article class="profile-card ${p.id===s.selected?'selected':''}"><div class="profile-identity"><div class="card-top"><h3>${esc(p.name)}</h3>${badge(p)}</div><p class="endpoint">${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</p></div><div class="card-stats"><div><small>${window.I18n.t('Задержка проверки')}</small><b>${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</b></div><div><small>${window.I18n.t('Успешных проверок')}</small><b>${successfulChecks(p.stats)}</b></div><div><small>${window.I18n.t('Получено')}</small><b>${fmt(p.stats.downlink)}</b></div><div><small>${window.I18n.t('Отправлено')}</small><b>${fmt(p.stats.uplink)}</b></div></div></article>`):`<p class="muted">${window.I18n.t('Профилей нет')}</p>`;
- $('profileRows').innerHTML=renderProfileGroups(s.profiles,p=>`<tr><td><b>${esc(p.name)}</b><small>${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</small></td><td>${badge(p)}</td><td class="mono">${p.priority}</td><td class="mono">${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</td><td class="mono">↓ ${fmt(p.stats.downlink)}<small>↑ ${fmt(p.stats.uplink)}</small></td><td class="mono">${p.stats.successful_checks||0} / ${p.stats.checks||0}</td>${canManage()?`<td><button data-edit="${p.id}">${window.I18n.t('Изменить')}</button><button class="danger" data-delete="${p.id}">${window.I18n.t('Удалить')}</button></td>`:''}</tr>`,true);$('directTraffic').textContent=`↓ ${fmt(s.direct.downlink)} / ↑ ${fmt(s.direct.uplink)}`;
- renderTraffic();window.Management?.render();
+function render(){
+ const s=state,totals=s.totals;
+ for(const id of ['addProfile','resetProfileChecks','addIpList','profileActionsHeader','routerNav'])if($(id))$(id).hidden=!canManage();
+ if($('settingsToggle'))$('settingsToggle').hidden=!canManage();
+ if(['routeros','settings'].includes(page)&&!canManage()){selectPage(page==='settings'?'account':'overview');return;}
+ notice(s.stats_error||s.last_error||'');$('username').textContent=s.user?.display_name||s.username;
+ $('coreStatus').textContent=t(s.ready?'Xray работает':'Xray недоступен');$('coreStatus').classList.toggle('bad',!s.ready);
+ if($('updated'))$('updated').textContent=t('Обновлено {0}',new Date().toLocaleTimeString(locale()));
+ if($('overviewPage')){$('totalDown').textContent=fmt(totals.downlink);$('totalUp').textContent=fmt(totals.uplink);$('downRate').textContent=fmt(totals.downlink_bps,true)+' '+window.I18n.t('сейчас');$('upRate').textContent=fmt(totals.uplink_bps,true)+' '+window.I18n.t('сейчас');$('uptime').textContent=duration(s.uptime);$('profileCount').textContent=window.I18n.t('{0} включено / {1} профилей',s.profiles.filter(p=>p.enabled).length,s.profiles.length);$('selectedName').textContent=s.profiles.find(p=>p.id===s.selected)?.name || 'Direct';$('routeSince').textContent=window.I18n.t('Выбран {0} назад',duration(Date.now()/1000-s.since));$('overviewProfiles').innerHTML=s.profiles.length?renderProfileGroups(s.profiles,p=>`<article class="profile-card ${p.id===s.selected?'selected':''}"><div class="profile-identity"><div class="card-top"><h3>${esc(p.name)}</h3>${badge(p)}</div><p class="endpoint">${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</p></div><div class="card-stats"><div><small>${window.I18n.t('Задержка проверки')}</small><b>${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</b></div><div><small>${window.I18n.t('Успешных проверок')}</small><b>${successfulChecks(p.stats)}</b></div><div><small>${window.I18n.t('Получено')}</small><b>${fmt(p.stats.downlink)}</b></div><div><small>${window.I18n.t('Отправлено')}</small><b>${fmt(p.stats.uplink)}</b></div></div></article>`):`<p class="muted">${window.I18n.t('Профилей нет')}</p>`;}
+ if($('profileRows')){$('profileRows').innerHTML=renderProfileGroups(s.profiles,p=>`<tr><td><b>${esc(p.name)}</b><small>${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</small></td><td>${badge(p)}</td><td class="mono">${p.priority}</td><td class="mono">${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</td><td class="mono">↓ ${fmt(p.stats.downlink)}<small>↑ ${fmt(p.stats.uplink)}</small></td><td class="mono">${p.stats.successful_checks||0} / ${p.stats.checks||0}</td>${canManage()?`<td><button data-edit="${p.id}">${window.I18n.t('Изменить')}</button><button class="danger" data-delete="${p.id}">${window.I18n.t('Удалить')}</button></td>`:''}</tr>`,true);$('directTraffic').textContent=`↓ ${fmt(s.direct.downlink)} / ↑ ${fmt(s.direct.uplink)}`;}
+ renderTraffic();renderIpLists();renderSettings();window.Management?.render();window.Updates?.render(s.updates);
 }
+
 let profileImport=null,profileSourceEpoch=0;
 function resetProfileImport(){
  profileSourceEpoch++;profileImport=null;if($('subscriptionDialog').open)$('subscriptionDialog').close();
@@ -115,23 +130,23 @@ async function loadProfileSubscription(data){
   renderSubscriptionProfiles();message('profileError','');message('subscriptionError',result.skipped?()=>t('Пропущено неподдерживаемых профилей: {0}',result.skipped):'');$('subscriptionDialog').showModal();
  }catch(error){if(epoch===profileSourceEpoch)message('profileError',error.message);}
 }
-$('profileSource').addEventListener('input',()=>{resetProfileImport();updateProfileSource();message('profileError','');});
-$('subscriptionOptions').addEventListener('change',event=>{
+if($('profileSource')) $('profileSource').addEventListener('input',()=>{resetProfileImport();updateProfileSource();message('profileError','');});
+if($('subscriptionOptions')) $('subscriptionOptions').addEventListener('change',event=>{
  const id=event.target.dataset.subscriptionProfile;if(!profileImport||!id)return;
  if(event.target.checked)profileImport.selected.add(id);else profileImport.selected.delete(id);
  const row=event.target.closest('.subscription-option');
  for(const input of row.querySelectorAll('input:not([type="checkbox"])'))input.disabled=!event.target.checked;
 });
-$('subscriptionOptions').addEventListener('input',event=>{
+if($('subscriptionOptions')) $('subscriptionOptions').addEventListener('input',event=>{
  if(!profileImport)return;const key=event.target.dataset.subscriptionName?'name':'priority',id=event.target.dataset.subscriptionName||event.target.dataset.subscriptionPriority;
  const entry=profileImport.profiles.find(p=>p.id===id);if(entry)entry[key]=event.target.value;
 });
-$('closeSubscription').onclick=()=>$('subscriptionDialog').close();
-$('subscriptionDialog').addEventListener('close',()=>{profileSourceEpoch++;profileImport=null;$('subscriptionOptions').innerHTML='';message('subscriptionError','');});
-$('profileDialog').addEventListener('close',resetProfileImport);
+if($('closeSubscription')) $('closeSubscription').onclick=()=>$('subscriptionDialog').close();
+if($('subscriptionDialog')) $('subscriptionDialog').addEventListener('close',()=>{profileSourceEpoch++;profileImport=null;$('subscriptionOptions').innerHTML='';message('subscriptionError','');});
+if($('profileDialog')) $('profileDialog').addEventListener('close',resetProfileImport);
 function editProfile(id){if(!canManage())return;editing=id;editRevision=state.revision;const p=state.profiles.find(p=>p.id===id),f=$('profileForm');f.reset();f.elements.name.value=p?.name||'';f.elements.priority.value=p?.priority||10;f.elements.enabled.checked=p?.enabled??true;f.elements.uri.required=!p;resetProfileImport();updateProfileSource();$('dialogTitle').textContent=t(p?'Редактирование профиля':'Новый профиль');message('profileError','');$('profileDialog').showModal();}
 function profilePayload(form){const data=Object.fromEntries(new FormData(form));data.enabled=form.elements.enabled.checked;data.priority=Number(data.priority);data.revision=editRevision;if(editing)data.id=editing;return data;}
-$('subscriptionForm').addEventListener('submit',async event=>{
+if($('subscriptionForm')) $('subscriptionForm').addEventListener('submit',async event=>{
  event.preventDefault();const button=event.submitter;if(!canManage()||!profileImport||button.disabled)return;button.disabled=true;message('subscriptionError','');
  try{
   const selection=profileImport,selected=[...selection.selected];
@@ -151,11 +166,10 @@ $('subscriptionForm').addEventListener('submit',async event=>{
  }catch(error){message('subscriptionError',error.message);}finally{button.disabled=false;}
 });
 document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.page)selectPage(button.dataset.page);if(button.dataset.edit)editProfile(button.dataset.edit);if(button.dataset.delete&&canManage()){const p=state.profiles.find(p=>p.id===button.dataset.delete);if(!await confirmAction(()=>t('Удалить профиль «{0}»? Xray будет перезапущен, текущие соединения прервутся.',p.name),'Удалить'))return;button.disabled=true;try{await api('/api/profiles/delete',{id:p.id,revision:state.revision});await refresh();}catch(e){notice(e.message);}finally{button.disabled=false;}}});
-$('loginForm').addEventListener('submit',event=>{event.preventDefault();window.Management.login(event);});
-$('logout').onclick=async()=>{try{await api('/api/logout',{});showLogin();}catch(e){notice(e.message);}};
-$('addProfile').onclick=()=>editProfile(null);$('closeDialog').onclick=()=>$('profileDialog').close();
-$('resetProfileChecks').onclick=async()=>{if(!canManage())return;const button=$('resetProfileChecks');button.disabled=true;try{await api('/api/profiles/reset-checks',{});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}};
-$('profileForm').addEventListener('submit',async e=>{
+if($('logout')) $('logout').onclick=async()=>{try{await api('/api/logout',{});showLogin();}catch(e){notice(e.message);}};
+if($('addProfile')) $('addProfile').onclick=()=>editProfile(null);if($('closeDialog')) $('closeDialog').onclick=()=>$('profileDialog').close();
+if($('resetProfileChecks')) $('resetProfileChecks').onclick=async()=>{if(!canManage())return;const button=$('resetProfileChecks');button.disabled=true;try{await api('/api/profiles/reset-checks',{});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}};
+if($('profileForm')) $('profileForm').addEventListener('submit',async e=>{
  e.preventDefault();if(!canManage()||e.submitter.disabled)return;const b=e.submitter;b.disabled=true;message('profileError','');
  try{
   const data=profilePayload(e.target);
@@ -164,13 +178,13 @@ $('profileForm').addEventListener('submit',async e=>{
   message('profileError','Применение…');await api('/api/profiles/'+(editing?'edit':'add'),data);$('profileDialog').close();await refresh();
  }catch(error){message('profileError',error.message);}finally{b.disabled=false;}
 });
-$('routerForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{const data=await api('/api/routeros',Object.fromEntries(new FormData(e.target)));$('routerOutput').value=data.script;$('routerOutput').dataset.warnings=(data.warnings||[]).join(' ');$('copyRouter').disabled=false;message('copyStatus',()=>[t('Скрипт сформирован'),...(data.warnings||[]).map(value=>t(value))].join(' '));}catch(error){notice(error.message);}finally{b.disabled=false;}});
-$('copyRouter').onclick=async()=>{try{if(navigator.clipboard && window.isSecureContext){await navigator.clipboard.writeText($('routerOutput').value);}else{$('routerOutput').focus();$('routerOutput').select();if(!document.execCommand('copy'))throw new Error('copy');}message('copyStatus',()=>[t('Скрипт скопирован'),t($('routerOutput').dataset.warnings||'')].filter(Boolean).join(' '));}catch(e){message('copyStatus','Не удалось скопировать скрипт');}};
+if($('routerForm')) $('routerForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{const data=await api('/api/routeros',Object.fromEntries(new FormData(e.target)));$('routerOutput').value=data.script;$('routerOutput').dataset.warnings=(data.warnings||[]).join(' ');$('copyRouter').disabled=false;message('copyStatus',()=>[t('Скрипт сформирован'),...(data.warnings||[]).map(value=>t(value))].join(' '));}catch(error){notice(error.message);}finally{b.disabled=false;}});
+if($('copyRouter')) $('copyRouter').onclick=async()=>{try{if(navigator.clipboard && window.isSecureContext){await navigator.clipboard.writeText($('routerOutput').value);}else{$('routerOutput').focus();$('routerOutput').select();if(!document.execCommand('copy'))throw new Error('copy');}message('copyStatus',()=>[t('Скрипт скопирован'),t($('routerOutput').dataset.warnings||'')].filter(Boolean).join(' '));}catch(e){message('copyStatus','Не удалось скопировать скрипт');}};
 let editingList = null, editingListVersion = 0, listOptions = '';
 function listCount(n){if(window.I18n.language()==='en')return n+' '+(n===1?'entry':'entries');const mod=n%100;return n+' '+(mod>=11&&mod<=14?'записей':n%10===1?'запись':n%10>=2&&n%10<=4?'записи':'записей');}
 function renderIpLists(){
  const lists=state.ip_lists||[];
- $('ipListCards').innerHTML=lists.length?lists.map(item=>`<article class="ip-list-card"><div class="card-top"><h2>${esc(item.name)}</h2><span class="list-count mono">${listCount(item.addresses.length)}</span></div><div class="ip-preview mono">${item.addresses.slice(0,3).map(esc).join(', ')||t('Пустой список')}</div><div class="ip-actions">${canManage()?`<button class="secondary" data-list-edit="${item.id}">${t('Изменить')}</button><button class="text-button" data-list-route="${item.id}">${t('В RouterOS')}</button><button class="text-button danger" data-list-delete="${item.id}">${t('Удалить')}</button>`:`<button class="secondary" data-list-view="${item.id}">${t('Просмотр списка')}</button>`}</div></article>`).join(''):`<p class="muted">${t('Списков нет')}</p>`;
+ if($('ipListCards'))$('ipListCards').innerHTML=lists.length?lists.map(item=>`<article class="ip-list-card"><div class="card-top"><h2>${esc(item.name)}</h2><span class="list-count mono">${listCount(item.addresses.length)}</span></div><div class="ip-preview mono">${item.addresses.slice(0,3).map(esc).join(', ')||t('Пустой список')}</div><div class="ip-actions">${canManage()?`<button class="secondary" data-list-edit="${item.id}">${t('Изменить')}</button><button class="text-button" data-list-route="${item.id}">${t('В RouterOS')}</button><button class="text-button danger" data-list-delete="${item.id}">${t('Удалить')}</button>`:`<button class="secondary" data-list-view="${item.id}">${t('Просмотр списка')}</button>`}</div></article>`).join(''):`<p class="muted">${t('Списков нет')}</p>`;
  const options=`<option value="">${window.I18n.t('Вручную')}</option>`+lists.map(item=>`<option value="${item.id}">${esc(item.name)} (${item.addresses.length})</option>`).join('');
  if(options!==listOptions){const previous=$('routerList').value,first=!listOptions;$('routerList').innerHTML=options;if(lists.some(item=>item.id===previous))$('routerList').value=previous;else if(first&&lists.length)$('routerList').value=lists[0].id;listOptions=options;}
  $('manualDestinations').hidden=Boolean($('routerList').value);
@@ -180,7 +194,7 @@ function editIpList(identifier){
  editingList=identifier;editingListVersion=item?.version||0;
  $('ipListForm').reset();const name=$('ipListForm').elements.namedItem('name');name.value=item?.name||'';name.readOnly=!canManage();$('ipAddresses').readOnly=!canManage();$('saveIpList').hidden=!canManage();$('saveIpList').disabled=!canManage();$('importIps').hidden=!canManage();$('ipFile').disabled=!canManage();
  $('ipAddresses').value=item?.addresses.join('\n')||'';
- $('ipListTitle').textContent=t(!canManage()?'Просмотр списка':item?'Редактирование списка':'Новый список');
+ if($('ipListTitle'))$('ipListTitle').textContent=t(!canManage()?'Просмотр списка':item?'Редактирование списка':'Новый список');
  message('ipListError','');$('ipListDialog').showModal();
 }
 async function copyText(value){
@@ -189,37 +203,39 @@ async function copyText(value){
  const parent=document.querySelector('dialog[open]')||document.body;parent.appendChild(buffer);
  buffer.select();try{if(!document.execCommand('copy'))throw new Error('Не удалось скопировать');}finally{buffer.remove();}
 }
-$('addIpList').onclick=()=>editIpList(null);
-$('closeIpList').onclick=()=>$('ipListDialog').close();
-$('routerList').onchange=()=>{$('manualDestinations').hidden=Boolean($('routerList').value);};
+if($('addIpList')) $('addIpList').onclick=()=>editIpList(null);
+if($('closeIpList')) $('closeIpList').onclick=()=>$('ipListDialog').close();
+if($('routerList')) $('routerList').onchange=()=>{$('manualDestinations').hidden=Boolean($('routerList').value);};
 document.addEventListener('click',async event=>{
  const button=event.target.closest('button');if(!button)return;
  if(button.dataset.listEdit||button.dataset.listView)editIpList(button.dataset.listEdit||button.dataset.listView);
  if(button.dataset.listRoute&&canManage())await window.Management.startJob('apply',button.dataset.listRoute);
  if(button.dataset.listDelete&&canManage())await window.Management.startJob('delete',button.dataset.listDelete);
 });
-$('ipListForm').addEventListener('submit',async event=>{
+if($('ipListForm')) $('ipListForm').addEventListener('submit',async event=>{
  event.preventDefault();if(!canManage())return;const button=event.submitter;button.disabled=true;message('ipListError','');
  try{const data=Object.fromEntries(new FormData(event.target));if(editingList){data.id=editingList;data.version=editingListVersion;}
  await api('/api/ip-lists/'+(editingList?'edit':'add'),data);$('ipListDialog').close();await refresh();}
  catch(error){message('ipListError',error.message);}finally{button.disabled=false;}
 });
-$('importIps').onclick=()=>{if(canManage())$('ipFile').click();};
-$('ipFile').onchange=async()=>{if(!canManage())return;const file=$('ipFile').files[0];if(!file)return;if(file.size>200000){message('ipListError','Размер файла превышает 200 КБ');return;}$('ipAddresses').value=await file.text();$('ipFile').value='';};
-$('copyIps').onclick=async()=>{try{await copyText($('ipAddresses').value);message('ipListError','');}catch(error){message('ipListError',error.message);}};
+if($('importIps')) $('importIps').onclick=()=>{if(canManage())$('ipFile').click();};
+if($('ipFile')) $('ipFile').onchange=async()=>{if(!canManage())return;const file=$('ipFile').files[0];if(!file)return;if(file.size>200000){message('ipListError','Размер файла превышает 200 КБ');return;}$('ipAddresses').value=await file.text();$('ipFile').value='';};
+if($('copyIps')) $('copyIps').onclick=async()=>{try{await copyText($('ipAddresses').value);message('ipListError','');}catch(error){message('ipListError',error.message);}};
 
 const routingKeys = ['gateway','host','source','interface','local_networks'];
 const probeKeys = ['probe_url','check_interval','fail_threshold','recover_threshold'];
-const settingsTabs=['routing','probes','router','users'];
-let settingsTab='routing';
+const settingsTabs=['routing','probes','router','users','updates'];
+let settingsTab=window.location?.hash?.slice(1)||'routing';
 function allowedSettingsTabs(){return state?.user?.role==='admin'?settingsTabs:[];}
-function selectSettingsTab(name,focus=false){
+function selectSettingsTab(name,focus=false,sync=true){
+ if(!$('settingsTabs'))return;
  const allowed=allowedSettingsTabs();settingsTab=allowed.includes(name)?name:'routing';
  for(const key of settingsTabs){const button=$('settingsTab-'+key);button.hidden=!allowed.includes(key);button.setAttribute('aria-selected',String(key===settingsTab));button.tabIndex=key===settingsTab?0:-1;$('settingsPanel-'+key).hidden=!allowed.includes(key)||key!==settingsTab;}
  if(focus)$('settingsTab-'+settingsTab).focus();
+ if(sync&&page==='settings')window.history.replaceState(null,'',window.location.pathname+'#'+settingsTab);
 }
-$('settingsTabs').addEventListener('click',event=>{const button=event.target.closest('button');if(button?.dataset.settingsTab)selectSettingsTab(button.dataset.settingsTab);});
-$('settingsTabs').addEventListener('keydown',event=>{
+if($('settingsTabs')) $('settingsTabs').addEventListener('click',event=>{const button=event.target.closest('button');if(button?.dataset.settingsTab)selectSettingsTab(button.dataset.settingsTab);});
+if($('settingsTabs')) $('settingsTabs').addEventListener('keydown',event=>{
  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
  const button=event.target.closest('button');if(!button?.dataset.settingsTab)return;
  const allowed=allowedSettingsTabs(),index=allowed.indexOf(button.dataset.settingsTab);if(!allowed.length)return;
@@ -228,12 +244,13 @@ $('settingsTabs').addEventListener('keydown',event=>{
 });
 let editingUser = null, editingUserRevision = 0;
 function fillSettingsForm(id, keys, settings){
- const form=$(id);if(!settings||form.dataset.dirty==='1'||form.dataset.revision===String(settings.revision))return;
+ const form=$(id);if(!form||!settings||form.dataset.dirty==='1'||form.dataset.revision===String(settings.revision))return;
  for(const key of keys)form.elements.namedItem(key).value=settings[key];form.dataset.revision=String(settings.revision);
 }
 function renderSettings(){
+ fillSettingsForm('routerForm',['source','interface','local_networks'],state.settings);if(!$('settingsPage'))return;
  const admin=state.user?.role==='admin';$('settingsToggle').hidden=!admin;
- selectSettingsTab(settingsTab);
+ selectSettingsTab(settingsTab,false,false);
  for(const id of ['routingSettingsForm','probeSettingsForm','usersSettings'])$(id).hidden=!admin;
  fillSettingsForm('routingSettingsForm',routingKeys,state.settings);
  fillSettingsForm('probeSettingsForm',probeKeys,state.settings);
@@ -243,14 +260,15 @@ function renderSettings(){
 function readableSettingsError(text){const labels={check_interval:'Интервал проверки',fail_threshold:'Порог ошибок',recover_threshold:'Порог восстановления'};return String(text).replace(/^(check_interval|fail_threshold|recover_threshold): допустимо целое число от (\d+) до (\d+)\.$/,(_,key,min,max)=>t('{0}: допустимо целое число от {1} до {2}.',t(labels[key]),min,max)).replace(/^(check_interval|fail_threshold|recover_threshold): enter an integer from (\d+) to (\d+)\.$/,(_,key,min,max)=>t('{0}: допустимо целое число от {1} до {2}.',t(labels[key]),min,max)).replace(/^(check_interval|fail_threshold|recover_threshold):/,(_,key)=>t(labels[key])+':');}
 function formStatus(id, text, error=false){message(id,text);$(id).classList.toggle('error',error);}
 for(const [id,statusId] of [['routingSettingsForm','routingSettingsStatus'],['probeSettingsForm','probeSettingsStatus']]){
+ if(!$(id))continue;
  $(id).addEventListener('input',()=>{$(id).dataset.dirty='1';formStatus(statusId,'');});
  $(id).addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter,form=event.target;button.disabled=true;
   try{const data=Object.fromEntries(new FormData(form));data.revision=Number(form.dataset.revision);await api('/api/settings',data);delete form.dataset.dirty;delete form.dataset.revision;formStatus(statusId,'Настройки сохранены');await refresh();}
   catch(error){formStatus(statusId,readableSettingsError(error.message),true);}finally{button.disabled=false;}
  });
 }
-$('routerForm').addEventListener('input',()=>{$('routerForm').dataset.dirty='1';});
-$('passwordForm').addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter,form=event.target;button.disabled=true;
+if($('routerForm')) $('routerForm').addEventListener('input',()=>{$('routerForm').dataset.dirty='1';});
+if($('passwordForm')) $('passwordForm').addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter,form=event.target;button.disabled=true;
  try{const data=Object.fromEntries(new FormData(form));if(data.password!==data.repeat_password)throw new Error('Пароли не совпадают');delete data.repeat_password;await api('/api/password',data);form.reset();formStatus('passwordStatus','Пароль изменён');await refresh();}
  catch(error){formStatus('passwordStatus',error.message,true);}finally{button.disabled=false;}
 });
@@ -259,16 +277,16 @@ function editUser(id){
  form.elements.username.value=user?.username||'';form.elements.role.value=user?.role||'operator';form.elements.password.required=!user;
  $('userDialogTitle').textContent=t(user?'Редактирование пользователя':'Новый пользователь');$('userPasswordLabel').textContent=t(user?'Новый пароль (необязательно)':'Пароль');message('userError','');$('userDialog').showModal();
 }
-$('addUser').onclick=()=>editUser(null);
-$('closeUser').onclick=()=>$('userDialog').close();
-$('userDialog').addEventListener('close',()=>{$('userForm').reset();message('userError','');});
+if($('addUser')) $('addUser').onclick=()=>editUser(null);
+if($('closeUser')) $('closeUser').onclick=()=>$('userDialog').close();
+if($('userDialog')) $('userDialog').addEventListener('close',()=>{$('userForm').reset();message('userError','');});
 document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;
  if(button.dataset.userEdit)editUser(button.dataset.userEdit);
  if(button.dataset.userDelete){const user=state.users.find(u=>u.id===button.dataset.userDelete);if(!await confirmAction(()=>t('Удалить пользователя «{0}»?',user.username),'Удалить'))return;button.disabled=true;
   try{await api('/api/users/delete',{id:user.id,revision:user.revision});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}
  }
 });
-$('userForm').addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter,form=event.target;button.disabled=true;message('userError','');
+if($('userForm')) $('userForm').addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter,form=event.target;button.disabled=true;message('userError','');
  try{const data=Object.fromEntries(new FormData(form));if(editingUser){data.id=editingUser;data.revision=editingUserRevision;}await api('/api/users/'+(editingUser?'edit':'add'),data);form.reset();$('userDialog').close();await refresh();}
  catch(error){message('userError',error.message);}finally{button.disabled=false;}
 });
@@ -277,11 +295,11 @@ document.addEventListener('languagechange',()=>{
  selectPage(page);
  if(state)render();
  renderSubscriptionProfiles();
- $('dialogTitle').textContent=t(editing?'Редактирование профиля':'Новый профиль');
+ if($('dialogTitle'))$('dialogTitle').textContent=t(editing?'Редактирование профиля':'Новый профиль');
  $('ipListTitle').textContent=t(!canManage()?'Просмотр списка':editingList?'Редактирование списка':'Новый список');
- $('userDialogTitle').textContent=t(editingUser?'Редактирование пользователя':'Новый пользователь');
- $('userPasswordLabel').textContent=t(editingUser?'Новый пароль (необязательно)':'Пароль');
- for(const [id,value]of messages)$(id).textContent=typeof value==='function'?value():t(value);
+ if($('userDialogTitle'))$('userDialogTitle').textContent=t(editingUser?'Редактирование пользователя':'Новый пользователь');
+ if($('userPasswordLabel'))$('userPasswordLabel').textContent=t(editingUser?'Новый пароль (необязательно)':'Пароль');
+ for(const [id,value]of messages)if($(id))$(id).textContent=typeof value==='function'?value():t(value);
 });
 async function loadVersion(){
  try{
@@ -292,4 +310,6 @@ async function loadVersion(){
   document.querySelectorAll('[data-version-link]').forEach(link=>{link.textContent=info.version;link.setAttribute('href',info.url);link.hidden=false;});
  }catch{}
 }
-loadVersion();refresh();setInterval(()=>{if(state && !document.hidden)refresh();},5000);
+window.addEventListener('hashchange',()=>{if(page==='settings')selectSettingsTab(window.location.hash.slice(1),false,false);});
+try{const initial=$('pageState');if(initial?.textContent){state=JSON.parse(initial.textContent);csrf=state.csrf;}}catch{}
+loadVersion();if(state){render();activatePage(page);}else refresh();setInterval(()=>{if(state && !document.hidden)refresh();},5000);

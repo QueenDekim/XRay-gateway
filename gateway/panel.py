@@ -9,11 +9,13 @@ import time
 import io
 import re
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs, quote
 from controller import routeros, profile_sources, subscription_group, profile_node_id
 from accounts import Accounts
 from version import build_info
 from localization import translate_message
+import web_pages
+import session_store
 
 
 class Panel(http.server.BaseHTTPRequestHandler):
@@ -80,14 +82,42 @@ class Panel(http.server.BaseHTTPRequestHandler):
                     if user:
                         self.update_session_user(token, user)
                         return token, session
-                self.sessions.pop(token, None)
+                if self.sessions.pop(token, None) is not None:session_store.save(self.controller,self.sessions)
                 if hasattr(self.controller,'router_service'):self.controller.router_service.logout(token)
         except (KeyError, http.cookies.CookieError):
             pass
         return None, None
 
+    def redirect(self, target):
+        self.send_response(303);self.send_header('Location',target)
+        self.send_header('Cache-Control','no-store');self.send_header('Content-Length','0');self.end_headers()
+
+    def updates(self):
+        from updates import Updates
+        with self.controller.lock:
+            if not hasattr(self.controller,'updates'):self.controller.updates=Updates(self.controller)
+            return self.controller.updates
+
+    def page_state(self, session):
+        with self.controller.lock:
+            return self.snapshot() | {'csrf':session['csrf'],'username':session['username'],'user':session['user'],
+                'settings':self.controller.settings(),'users':self.accounts().users() if session['user']['role']=='admin' else [],
+                'ip_lists':self.controller.ip_lists(self.defaults),'updates':self.updates().snapshot(session['user']['role']=='admin')}
+
     def do_GET(self):
         path = urlsplit(self.path).path
+        page,topic=web_pages.route(path)
+        if path in ('/','/login') or page:
+            _,session=self.session()
+            if path=='/':self.redirect('/overview' if session else '/login');return
+            if path=='/login':
+                if session:self.redirect(web_pages.safe_next(parse_qs(urlsplit(self.path).query).get('next',['/overview'])[0]))
+                else:self.respond(200,web_pages.render(self.assets,'login',None),content_type='text/html; charset=utf-8')
+                return
+            if not session:self.redirect('/login?next='+quote(path,safe=''));return
+            if page in ('routeros','settings') and session['user']['role']!='admin':
+                self.redirect('/account' if page=='settings' else '/overview');return
+            self.respond(200,web_pages.render(self.assets,page,self.page_state(session),topic),content_type='text/html; charset=utf-8');return
         if path == '/locales.js':
             self.respond(200, b'window.XrayMessages = ' + (self.assets / 'locales.json').read_bytes() + b';\n', content_type='text/javascript; charset=utf-8')
             return
@@ -99,7 +129,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
             if asset.is_file() and asset.suffix in ('.js','.css'):
                 self.respond(200,asset.read_bytes(),content_type='text/javascript' if asset.suffix=='.js' else 'text/css')
                 return
-        if path in ('/', '/app.js', '/management.js', '/terminal-stream.js', '/theme.js', '/i18n.js', '/locales.json', '/style.css', '/favicon.png'):
+        if path in ('/login.js', '/updates.js', '/app.js', '/management.js', '/terminal-stream.js', '/theme.js', '/i18n.js', '/locales.json', '/style.css', '/favicon.png'):
             filename = 'index.html' if path == '/' else path[1:]
             kind = {'html':'text/html; charset=utf-8', 'js':'text/javascript; charset=utf-8',
                     'css':'text/css; charset=utf-8', 'png':'image/png', 'json':'application/json; charset=utf-8'}[filename.rsplit('.', 1)[1]]
@@ -118,6 +148,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
                 output=io.BytesIO();qrcode.make(uri).save(output,format='PNG')
                 self.respond(200,output.getvalue(),content_type='image/png')
             except ValueError as exc:self.respond(400,{'error':str(exc)})
+        elif path=='/api/updates':self.respond(200,self.updates().snapshot(session['user']['role']=='admin'))
         elif path.startswith('/api/routeros/'):
             try:
                 router=self.router()
@@ -126,26 +157,28 @@ class Panel(http.server.BaseHTTPRequestHandler):
                     self.respond(200,router.public_config())
                 elif path=='/api/routeros/jobs':self.respond(200,{'jobs':router.recent(session['user'])})
                 elif path.startswith('/api/routeros/jobs/'):
-                    from urllib.parse import parse_qs
                     cursor=parse_qs(urlsplit(self.path).query).get('cursor',['0'])[0]
                     self.respond(200,router.job(path.rsplit('/',1)[1],session['user'],cursor))
                 elif path.startswith('/api/routeros/terminal/'):
                     if session['user']['role']!='admin':self.respond(403,{'error':'Требуются права администратора.'});return
-                    from urllib.parse import parse_qs
                     cursor=parse_qs(urlsplit(self.path).query).get('cursor',['0'])[0]
                     self.respond(200,router.read_terminal(path.rsplit('/',1)[1],session['user'],token,cursor))
                 else:self.respond(404,{'error':'Не найдено.'})
             except ValueError as exc:self.respond(400,{'error':str(exc)})
         elif path == '/api/state':
             with self.controller.lock:
-                self.respond(200, self.snapshot() | {'csrf': session['csrf'], 'username': session['username'],
-                    'user':session['user'], 'settings':self.controller.settings(),
-                    'users':self.accounts().users() if session['user']['role'] == 'admin' else [],
-                    'ip_lists': self.controller.ip_lists(self.defaults)})
+                self.respond(200,self.page_state(session))
         else:
             self.respond(404, {'error': 'Не найдено.'})
 
     def do_POST(self):
+        updater=self.updates()
+        if not updater.enter_write():
+            self.respond(503,{'error':'Устанавливается обновление. Повторите запрос после перезапуска.'});return
+        try:self.handle_post()
+        finally:updater.leave_write()
+
+    def handle_post(self):
         try:
             origin = self.headers.get('Origin')
             if origin and urlsplit(origin).netloc != self.headers.get('Host'):
@@ -159,6 +192,8 @@ class Panel(http.server.BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 raise ValueError('Object required')
             path = urlsplit(self.path).path
+            if self.updates().maintenance():
+                self.respond(503,{'error':'Устанавливается обновление. Повторите запрос после перезапуска.'});return
             if path == '/api/login':
                 self.login(data)
                 return
@@ -172,13 +207,14 @@ class Panel(http.server.BaseHTTPRequestHandler):
             if not hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), session['csrf']):
                 self.respond(403, {'error': 'Недействительный CSRF-токен.'})
                 return
-            shared_write=path=='/api/settings' or path.startswith(('/api/profiles/','/api/ip-lists/','/api/routeros/','/api/users/'))
+            shared_write=path=='/api/settings' or path.startswith(('/api/profiles/','/api/ip-lists/','/api/routeros/','/api/users/','/api/updates/'))
             if shared_write and session['user']['role']!='admin':
                 self.respond(403,{'error':'Требуются права администратора.'})
                 return
             if path == '/api/logout':
                 with self.controller.lock:
                     self.sessions.pop(token, None)
+                    session_store.save(self.controller,self.sessions)
                 if hasattr(self.controller,'router_service'):self.router().logout(token)
                 self.respond(200, {'ok': True}, cookie='xray_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
             elif path.startswith('/api/account/'):
@@ -200,8 +236,18 @@ class Panel(http.server.BaseHTTPRequestHandler):
                     elif path in ('/api/account/2fa/disable','/api/account/2fa/recovery'):
                         user,codes=accounts.manage_factor(actor,data.get('password'),data.get('code',''),path.endswith('/disable'))
                     else:self.respond(404,{'error':'Не найдено.'});return
-                    with self.controller.lock:self.update_session_user(token,user)
+                    with self.controller.lock:
+                        self.update_session_user(token,user)
+                        session_store.save(self.controller,self.sessions)
                     self.respond(200,{'ok':True,'user':user}|({'recovery_codes':codes} if codes is not None else {}))
+                except ValueError as exc:self.respond(400,{'error':str(exc)})
+            elif path.startswith('/api/updates/'):
+                try:
+                    updater=self.updates()
+                    if path=='/api/updates/check':self.respond(202,updater.start_check())
+                    elif path=='/api/updates/settings':self.respond(200,updater.save_settings(data))
+                    elif path=='/api/updates/install':self.respond(202,updater.install(str(data.get('tag',''))))
+                    else:self.respond(404,{'error':'Не найдено.'})
                 except ValueError as exc:self.respond(400,{'error':str(exc)})
             elif path == '/api/profiles/preview':
                 try:
@@ -340,6 +386,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
                     with self.controller.lock:
                         user = self.accounts().change_password(session['user'], data.get('current_password'), data.get('password'))
                         self.update_session_user(token, user)
+                        session_store.save(self.controller,self.sessions)
                     self.respond(200, {'ok':True})
                 except ValueError as exc:
                     self.respond(400, {'error':str(exc)})
@@ -357,6 +404,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
                             user = self.accounts().change(path.rsplit('/', 1)[1], data, current['user'])
                             if user and user['id'] == current['user']['id']:
                                 self.update_session_user(token, user)
+                                session_store.save(self.controller,self.sessions)
                             self.respond(200, {'ok':True, 'user':user})
                 except PermissionError as exc:
                     self.respond(403, {'error':str(exc)})
@@ -422,4 +470,5 @@ class Panel(http.server.BaseHTTPRequestHandler):
                 self.sessions.pop(next(iter(self.sessions)))
             self.sessions[token] = {'expires': now + 43200, 'csrf': secrets.token_urlsafe(32)}
             self.update_session_user(token, auth)
+            session_store.save(self.controller,self.sessions)
         self.respond(200, {'ok': True}, cookie=f'xray_session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200')

@@ -48,7 +48,7 @@ class LocalizationTests(unittest.TestCase):
             def handle_starttag(inner,tag,attributes):
                 for key,value in attributes:
                     if key in ('data-i18n','data-i18n-aria'):self.assertIn(value,catalog)
-        Keys().feed((ROOT/'gateway/web/index.html').read_text(encoding='utf-8'))
+        for page in (ROOT/'gateway/web').rglob('*.html'):Keys().feed(page.read_text(encoding='utf-8'))
         for source,target in catalog.items():
             self.assertTrue(target,source)
             self.assertEqual(sorted(re.findall(r'\{\d+\}',source)),sorted(re.findall(r'\{\d+\}',target)),source)

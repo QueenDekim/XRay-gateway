@@ -14,3 +14,8 @@ a trusted management network, use HTTPS at the proxy and back up private runtime
 data. The supervisor needs network administration capabilities inside its
 container namespace. Review changes to Compose capabilities and network drivers
 before applying them to a production host.
+
+The optional updater mounts the Docker socket and can control the host through
+Docker. The gateway and core do not mount it. Restrict panel administrators and
+protect `.backups/`, runtime encryption keys and saved session files. See
+[Update permissions](docs/updates.md#docker-access).

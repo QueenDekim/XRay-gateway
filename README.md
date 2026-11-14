@@ -1,16 +1,8 @@
 <p align="center">
-  <picture>
-    <source
-      srcset=".github/assets/logo.png"
-      media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-    />
-    <source
-      srcset=".github/assets/logo-white.png"
-      media="(prefers-color-scheme: dark)"
-    />
-    <img src=".github/assets/logo.png" alt="Xray Gateway logo" width="128" height="128" />
-  </picture>
+  <img src=".github/assets/logo.png#gh-light-mode-only" alt="Xray Gateway logo" width="128" height="128" />
+  <img src=".github/assets/logo-white.png#gh-dark-mode-only" alt="Xray Gateway logo" width="128" height="128" />
 </p>
+<div id="header" align="center"><img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/QueenDekim/XRay-gateway"> <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/m/QueenDekim/XRay-gateway"><br> <img alt="GitHub top language" src="https://img.shields.io/github/languages/top/QueenDekim/XRay-gateway"> <a href="./LICENSE" target="_blank"> <img src="https://img.shields.io/github/license/QueenDekim/XRay-gateway"> </a></div>
 
 # Xray Gateway
 
@@ -26,8 +18,9 @@ do not provide the required macvlan data path.
 
 - Profile priorities, health checks and automatic selection of a healthy route.
 - Traffic counters, live charts and per-profile statistics.
-- Mixed IPv4/IPv6 address lists and scoped RouterOS script generation.
-- Administrator and operator accounts, password changes and CSRF protection.
+- Mixed IPv4/IPv6 and domain lists, with direct RouterOS installation over SSH.
+- Administrator and read-only accounts, avatars and two-factor authentication.
+- Separate page URLs, a sectioned API Wiki and updates with backup and rollback.
 - Four interface styles, each with light and dark modes.
 
 The transparent VPN path supports IPv4. IPv6 entries export to RouterOS address
@@ -39,8 +32,8 @@ passes its health checks, the gateway uses the direct connection.
 
 | Theme   | Screenshot                                                                   |
 | ------- | ---------------------------------------------------------------------------- |
-| Titan   | <img src=".github/assets/titan.png" alt="Titan interface" width="640" />     |
-| Paper   | <img src=".github/assets/paper.png" alt="Paper interface" width="640" />     |
+| Titan   | <img src=".github/assets/titan.png"   alt="Titan interface" width="640" />   |
+| Paper   | <img src=".github/assets/paper.png"   alt="Paper interface" width="640" />   |
 | Console | <img src=".github/assets/console.png" alt="Console interface" width="640" /> |
 | Contour | <img src=".github/assets/circuit.png" alt="Contour interface" width="640" /> |
 
@@ -67,14 +60,16 @@ docker compose ps
 ```
 
 Open `http://<GATEWAY_IP>:<PANEL_PORT>`, sign in with `ADMIN_USERNAME` and the
-password you entered, and add a VLESS profile. Add an IP list and generate its
-RouterOS script after checking the [routing instructions](docs/routeros.md).
+password you entered, and add a VLESS profile. Add an IP list and install it
+on RouterOS after checking the [routing instructions](docs/routeros.md).
 
 ## Documentation
 
 The [documentation index](docs/README.md) covers installation, network drivers,
 configuration, RouterOS preparation, panel/API use, backups and troubleshooting.
-Read [deployment](docs/deployment.md) before changing a production router.
+Read [deployment](docs/deployment.md) for source builds and prebuilt GHCR images,
+and [updates](docs/updates.md) for installation, backups and rollback.
+The panel also links to the [API reference](docs/api/README.md).
 
 ## NetLens
 

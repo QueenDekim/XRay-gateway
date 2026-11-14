@@ -115,6 +115,12 @@
       "revision": "ec9bd895f5f6d8266d8bb93696018244b9e67b52",
       "tag": "1.8.1-ec9bd89",
       "summary": "Correct historical version numbers and validate release tags and packaged metadata."
+    },
+    {
+      "version": "1.8.2",
+      "revision": "b1979d92afabd213120e0c1766f705f912a15e01",
+      "tag": "1.8.2-b1979d9",
+      "summary": "Publish tested amd64 and arm64 gateway images to GHCR."
     }
   ]
 }

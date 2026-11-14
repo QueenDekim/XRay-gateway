@@ -1,0 +1,736 @@
+{
+  "format": 1,
+  "pages": [
+    {
+      "slug": "start",
+      "title": {
+        "ru": "Начало работы",
+        "en": "Getting started"
+      },
+      "paragraphs": [
+        {
+          "ru": "Все пути API относятся к адресу панели. Запросы и ответы используют JSON.",
+          "en": "API paths are relative to the panel URL. Requests and responses use JSON."
+        },
+        {
+          "ru": "После входа сохраняйте cookie xray_session. Получите csrf через GET /api/state и передавайте его в X-CSRF-Token для защищённых POST-запросов.",
+          "en": "Keep the xray_session cookie after login. Read csrf from GET /api/state and send it in X-CSRF-Token for protected POST requests."
+        },
+        {
+          "ru": "Ошибки возвращают поле error. Accept-Language: en включает английский язык; по умолчанию используется русский. Коды 400, 401, 403, 429 и 503 обозначают неверные данные, отсутствие сессии, запрет доступа, ограничение частоты и недоступность операции.",
+          "en": "Errors return an error field. Accept-Language: en selects English; Russian is the default. Status codes 400, 401, 403, 429 and 503 mean invalid input, missing session, forbidden access, rate limit and unavailable operation."
+        }
+      ],
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/version",
+          "role": "public",
+          "description": {
+            "ru": "Версия, полный SHA исходников и ссылка на тег. Вход не требуется.",
+            "en": "Version, full source SHA and tag link. No login required."
+          },
+          "response": {
+            "base_version": "1.9.0",
+            "version": "1.9.0-abcdef0",
+            "revision": "abcdef0123456789abcdef0123456789abcdef0123",
+            "tag": "1.9.0-abcdef0",
+            "url": "https://github.com/QueenDekim/XRay-gateway/tree/1.9.0-abcdef0"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/state",
+          "role": "user",
+          "description": {
+            "ru": "Состояние шлюза, профили, списки, статистика, текущий пользователь и CSRF. Поле users доступно администратору. Пароли и VLESS-ключи не возвращаются.",
+            "en": "Gateway state, profiles, lists, statistics, current user and CSRF. Only administrators receive users. Passwords and VLESS keys are omitted."
+          }
+        }
+      ]
+    },
+    {
+      "slug": "authentication",
+      "title": {
+        "ru": "Вход и сессии",
+        "en": "Authentication and sessions"
+      },
+      "paragraphs": [
+        {
+          "ru": "Сессия действует 12 часов. Панель хранит сессии зашифрованными и проверяет ревизию учётной записи при каждом обращении. Смена пароля и прав отзывает старые сессии.",
+          "en": "Sessions last 12 hours. The panel stores sessions encrypted and checks the account revision on each request. Password or role changes revoke earlier sessions."
+        },
+        {
+          "ru": "Если у пользователя включена 2FA, первый запрос возвращает challenge без cookie. Передайте challenge и code во второй запрос. Незавершённый вход истекает через три минуты.",
+          "en": "With 2FA enabled, the first request returns a challenge without a cookie. Submit challenge and code in the second request. An unfinished login expires after three minutes."
+        }
+      ],
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/login",
+          "role": "public",
+          "description": {
+            "ru": "Проверка логина и пароля. При успехе без 2FA устанавливает cookie.",
+            "en": "Verify username and password. Sets the cookie on success without 2FA."
+          },
+          "request": {
+            "username": "admin",
+            "password": "example-password"
+          },
+          "response": {
+            "requires_2fa": true,
+            "challenge": "temporary-challenge"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/login/2fa",
+          "role": "public",
+          "description": {
+            "ru": "Завершает вход по одноразовому коду или коду восстановления.",
+            "en": "Complete login with a TOTP or recovery code."
+          },
+          "request": {
+            "challenge": "temporary-challenge",
+            "code": "123456"
+          },
+          "response": {
+            "ok": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/logout",
+          "role": "user",
+          "description": {
+            "ru": "Отзывает текущую сессию и закрывает её терминал RouterOS.",
+            "en": "Revoke the current session and close its RouterOS terminal."
+          },
+          "request": {},
+          "response": {
+            "ok": true
+          }
+        }
+      ]
+    },
+    {
+      "slug": "profiles",
+      "title": {
+        "ru": "Профили и подписки",
+        "en": "Profiles and subscriptions"
+      },
+      "paragraphs": [
+        {
+          "ru": "Каждый профиль имеет собственный приоритет от 1 до 1000. Меньшее число имеет преимущество среди доступных включённых профилей. Изменение конфигурации проверяет её и перезапускает Xray.",
+          "en": "Each profile has its own priority from 1 to 1000. Lower numbers win among enabled, available profiles. Configuration changes validate and restart Xray."
+        },
+        {
+          "ru": "Для подписки сначала получите кандидатов. Токен выбора связан с сессией и действует пять минут. При добавлении можно выбрать несколько профилей, при замене — один. Повторный импорт обновляет совпавшие записи своей группы.",
+          "en": "Preview a subscription to obtain candidates. Its selection token belongs to the session and lasts five minutes. Add accepts several profiles; replacement accepts one. Reimport updates matching records in that subscription group."
+        }
+      ],
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/profiles/preview",
+          "role": "admin",
+          "description": {
+            "ru": "Загружает VLESS-подписку и возвращает token, profiles, skipped и group. В profiles указаны id кандидата, имя, адрес, порт, транспорт и защита.",
+            "en": "Download a VLESS subscription and return token, profiles, skipped and group. Candidates include ID, name, address, port, transport and security."
+          },
+          "request": {
+            "uri": "https://example.org/subscription/token"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/profiles/add",
+          "role": "admin",
+          "description": {
+            "ru": "Добавляет профиль. Для подписки передайте token, выбранные ID и отдельные имена и приоритеты. revision берите из /api/state.",
+            "en": "Add a profile. For subscriptions, send the token, selected IDs and individual names and priorities. Read revision from /api/state."
+          },
+          "request": {
+            "revision": 1,
+            "uri": "https://example.org/subscription/token",
+            "enabled": true,
+            "name": "",
+            "priority": 10,
+            "subscription_token": "selection-token",
+            "subscription_profiles": [
+              "candidate-id"
+            ],
+            "subscription_name": "My subscription",
+            "subscription_options": {
+              "candidate-id": {
+                "name": "Primary",
+                "priority": 10
+              }
+            }
+          },
+          "response": {
+            "ok": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/profiles/edit",
+          "role": "admin",
+          "description": {
+            "ru": "Принимает id профиля и текущую revision. Пустой uri сохраняет подключение; name, priority и enabled редактируются отдельно.",
+            "en": "Accepts the profile ID and current revision. An empty uri preserves the connection; edit name, priority and enabled separately."
+          },
+          "request": {
+            "id": "primary",
+            "revision": 2,
+            "name": "Primary",
+            "priority": 5,
+            "enabled": true,
+            "uri": ""
+          },
+          "response": {
+            "ok": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/profiles/delete",
+          "role": "admin",
+          "description": {
+            "ru": "Удаляет профиль. Нужны id и revision.",
+            "en": "Delete a profile by ID and revision."
+          },
+          "request": {
+            "id": "primary",
+            "revision": 2
+          },
+          "response": {
+            "ok": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/profiles/reset-checks",
+          "role": "admin",
+          "description": {
+            "ru": "Сбрасывает только число проверок и успешных проверок. Счётчики трафика сохраняются.",
+            "en": "Reset total and successful probe counts. Keep traffic counters."
+          },
+          "request": {},
+          "response": {
+            "ok": true
+          }
+        }
+      ]
+    },
+    {
+      "slug": "ip-lists",
+      "title": {
+        "ru": "IP-списки и домены",
+        "en": "IP lists and domains"
+      },
+      "paragraphs": [
+        {
+          "ru": "Список принимает IPv4, IPv6, CIDR и доменные имена. Разделяйте записи пробелами, запятыми, точками с запятой или переводами строк. Панель удаляет дубликаты и не разрешает домены заранее в IP.",
+          "en": "Lists accept IPv4, IPv6, CIDR and domain names. Separate entries with whitespace, commas, semicolons or newlines. The panel removes duplicates and leaves domain resolution to RouterOS."
+        },
+        {
+          "ru": "Редактирование и удаление используют version конкретного списка. Удаление сначала очищает принадлежащие списку ресурсы RouterOS; при ошибке сохраняет запись панели.",
+          "en": "Editing and deletion use the list version. Deletion first removes that list’s RouterOS resources; a failed cleanup keeps the panel record."
+        }
+      ],
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/ip-lists/add",
+          "role": "admin",
+          "description": {
+            "ru": "Создаёт список и возвращает list.",
+            "en": "Create a list and return list."
+          },
+          "request": {
+            "name": "Services",
+            "addresses": "example.org\n1.1.1.1\n2606:4700:4700::1111"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/ip-lists/edit",
+          "role": "admin",
+          "description": {
+            "ru": "Обновляет имя и содержимое своего списка.",
+            "en": "Update the name and entries of one list."
+          },
+          "request": {
+            "id": "list_0123456789ab",
+            "version": 1,
+            "name": "Services",
+            "addresses": "example.org\n1.1.1.1"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/ip-lists/delete",
+          "role": "admin",
+          "description": {
+            "ru": "Запускает очистку RouterOS и удаление списка. Возвращает 202 с id задания; читайте журнал RouterOS.",
+            "en": "Start RouterOS cleanup and list deletion. Returns 202 with a job ID; read the RouterOS job log."
+          },
+          "request": {
+            "id": "list_0123456789ab",
+            "version": 1
+          },
+          "response": {
+            "id": "job-id"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "routeros",
+      "title": {
+        "ru": "RouterOS и задания",
+        "en": "RouterOS and jobs"
+      },
+      "paragraphs": [
+        {
+          "ru": "Настройте SSH-доступ и закрепите отпечаток ключа хоста. Секреты сохраняются зашифрованными. Пустые поля секрета при сохранении того же подключения сохраняют существующие значения.",
+          "en": "Configure SSH and pin the host key fingerprint. The panel stores secrets encrypted. Blank secret fields preserve existing credentials when saving the same connection."
+        }
+      ],
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/routeros/config",
+          "role": "admin",
+          "description": {
+            "ru": "Параметры SSH без пароля и приватного ключа; configured и passphrase_set указывают сохранённое состояние.",
+            "en": "SSH settings without the password or private key; configured and passphrase_set describe saved credentials."
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/routeros/host-key",
+          "role": "admin",
+          "description": {
+            "ru": "Получает отпечаток для проверки администратором.",
+            "en": "Read a host fingerprint for administrator verification."
+          },
+          "request": {
+            "host": "192.168.50.1",
+            "port": 22
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/routeros/config",
+          "role": "admin",
+          "description": {
+            "ru": "Проверяет и сохраняет SSH-подключение. Для ключа используйте private_key и необязательную passphrase, для пароля — password.",
+            "en": "Verify and save SSH access. Key authentication uses private_key and optional passphrase; password authentication uses password."
+          },
+          "request": {
+            "host": "192.168.50.1",
+            "port": 22,
+            "username": "xray-panel",
+            "auth": "key",
+            "fingerprint": "SHA256:verified-host-key",
+            "private_key": "<OpenSSH private key>",
+            "passphrase": ""
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/routeros",
+          "role": "user",
+          "description": {
+            "ru": "Генерирует скрипт без выполнения. Можно указать list_id или destinations, source, interface и local_networks.",
+            "en": "Generate a script without executing it. Supply list_id or destinations, source, interface and local_networks."
+          },
+          "request": {
+            "list_id": "list_0123456789ab",
+            "source": "192.168.50.0/24",
+            "interface": "bridge",
+            "local_networks": "192.168.50.0/24"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/routeros/apply",
+          "role": "admin",
+          "description": {
+            "ru": "Устанавливает или заменяет список. Возвращает 202 с id задания.",
+            "en": "Install or replace a list. Returns 202 with a job ID."
+          },
+          "request": {
+            "id": "list_0123456789ab",
+            "version": 1
+          },
+          "response": {
+            "id": "job-id"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/routeros/jobs",
+          "role": "admin",
+          "description": {
+            "ru": "Список недавних операций.",
+            "en": "List recent operations."
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/routeros/jobs/{id}?cursor=0",
+          "role": "admin",
+          "description": {
+            "ru": "Возвращает status, logs и следующий cursor. Состояния: queued, running, done, error.",
+            "en": "Return status, logs and the next cursor. States: queued, running, done, error."
+          }
+        }
+      ]
+    },
+    {
+      "slug": "terminal",
+      "title": {
+        "ru": "Терминал RouterOS",
+        "en": "RouterOS terminal"
+      },
+      "paragraphs": [
+        {
+          "ru": "Терминал использует SSH PTY и связан с пользователем и сессией. Сырой вывод передаётся в base64. Простой завершает соединение через пять минут; максимальная длительность — час.",
+          "en": "The terminal uses SSH PTY and belongs to the user and session. Raw output is base64-encoded. Idle sessions close after five minutes; maximum lifetime is one hour."
+        }
+      ],
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/routeros/terminal/open",
+          "role": "admin",
+          "description": {
+            "ru": "Открывает терминал и возвращает id.",
+            "en": "Open a terminal and return its ID."
+          },
+          "request": {
+            "cols": 100,
+            "rows": 30
+          },
+          "response": {
+            "id": "terminal-id"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/routeros/terminal/{id}?cursor=0",
+          "role": "admin",
+          "description": {
+            "ru": "Читает data, cursor и closed. data нужно декодировать из base64.",
+            "en": "Read data, cursor and closed. Decode data from base64."
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/routeros/terminal/input",
+          "role": "admin",
+          "description": {
+            "ru": "Отправляет текст, управляющие символы и ответы терминала.",
+            "en": "Send text, control characters and terminal responses."
+          },
+          "request": {
+            "id": "terminal-id",
+            "data": "/system identity print\r"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/routeros/terminal/resize",
+          "role": "admin",
+          "description": {
+            "ru": "Изменяет размер PTY.",
+            "en": "Resize the PTY."
+          },
+          "request": {
+            "id": "terminal-id",
+            "cols": 120,
+            "rows": 36
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/routeros/terminal/close",
+          "role": "admin",
+          "description": {
+            "ru": "Закрывает соединение своей сессии.",
+            "en": "Close a connection belonging to the current session."
+          },
+          "request": {
+            "id": "terminal-id"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "accounts",
+      "title": {
+        "ru": "Пользователи и безопасность",
+        "en": "Accounts and security"
+      },
+      "paragraphs": [
+        {
+          "ru": "Пароли содержат от 8 до 1024 символов. Обычный пользователь меняет свою учётную запись, но не общие настройки, профили, списки или подключение RouterOS.",
+          "en": "Passwords contain 8 to 1024 characters. Regular users manage their own accounts but cannot change shared settings, profiles, lists or RouterOS access."
+        },
+        {
+          "ru": "Аватар передаётся в base64, допускаются PNG, JPEG и WebP до 2 МБ. Пустая строка удаляет аватар. Секрет TOTP возвращается только при настройке; коды восстановления — при создании.",
+          "en": "Upload avatars as base64 PNG, JPEG or WebP, up to 2 MB. An empty string removes the avatar. The panel returns the TOTP secret only during setup and recovery codes only when generated."
+        }
+      ],
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/account/profile",
+          "role": "user",
+          "description": {
+            "ru": "Меняет display_name и preferences своей учётной записи.",
+            "en": "Change the current account’s display_name and preferences."
+          },
+          "request": {
+            "display_name": "Operator",
+            "preferences": {
+              "language": "en",
+              "design": "titan",
+              "colorScheme": "dark"
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/account/avatar",
+          "role": "user",
+          "description": {
+            "ru": "Сохраняет или удаляет свой аватар.",
+            "en": "Save or remove the current avatar."
+          },
+          "request": {
+            "image": "<base64 image bytes>"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/password",
+          "role": "user",
+          "description": {
+            "ru": "Меняет пароль после проверки текущего.",
+            "en": "Change the password after verifying the current password."
+          },
+          "request": {
+            "current_password": "old-password",
+            "password": "new-password"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/account/2fa/setup",
+          "role": "user",
+          "description": {
+            "ru": "Создаёт временный секрет и URI настройки после проверки пароля.",
+            "en": "Create a pending secret and provisioning URI after password verification."
+          },
+          "request": {
+            "password": "current-password"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/account/2fa/qr",
+          "role": "user",
+          "description": {
+            "ru": "PNG QR-код незавершённой настройки.",
+            "en": "PNG QR code for pending enrollment."
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/account/2fa/enable",
+          "role": "user",
+          "description": {
+            "ru": "Включает TOTP и выдаёт коды восстановления.",
+            "en": "Enable TOTP and issue recovery codes."
+          },
+          "request": {
+            "code": "123456"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/account/2fa/disable",
+          "role": "user",
+          "description": {
+            "ru": "Отключает TOTP после проверки пароля и кода.",
+            "en": "Disable TOTP after verifying password and code."
+          },
+          "request": {
+            "password": "current-password",
+            "code": "123456"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/account/2fa/recovery",
+          "role": "user",
+          "description": {
+            "ru": "Пересоздаёт одноразовые коды восстановления.",
+            "en": "Regenerate one-time recovery codes."
+          },
+          "request": {
+            "password": "current-password",
+            "code": "123456"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/users/add",
+          "role": "admin",
+          "description": {
+            "ru": "Создаёт пользователя с role admin или operator.",
+            "en": "Create an account with role admin or operator."
+          },
+          "request": {
+            "username": "reader",
+            "password": "example-password",
+            "role": "operator"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/users/edit",
+          "role": "admin",
+          "description": {
+            "ru": "Меняет пользователя по id и revision. Пустой пароль сохраняет прежний.",
+            "en": "Edit an account by ID and revision. A blank password preserves the current password."
+          },
+          "request": {
+            "id": "user-id",
+            "revision": 1,
+            "username": "reader",
+            "password": "",
+            "role": "operator"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/users/delete",
+          "role": "admin",
+          "description": {
+            "ru": "Удаляет пользователя. Панель защищает последнего администратора и запрещает самоудаление.",
+            "en": "Delete an account. The panel protects the last administrator and prevents self-deletion."
+          },
+          "request": {
+            "id": "user-id",
+            "revision": 1
+          }
+        }
+      ]
+    },
+    {
+      "slug": "settings",
+      "title": {
+        "ru": "Настройки панели",
+        "en": "Panel settings"
+      },
+      "paragraphs": [
+        {
+          "ru": "GET /api/state содержит settings и их revision. Меняйте только нужные поля и передавайте актуальную ревизию. Настройки маршрута используются при операциях RouterOS; пользовательские значения сохраняются между перезапусками.",
+          "en": "GET /api/state includes settings and their revision. Send only the fields to change and the current revision. Route settings feed RouterOS operations; saved values survive restarts."
+        }
+      ],
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/settings",
+          "role": "admin",
+          "description": {
+            "ru": "Настраивает gateway, host, source, interface, local_networks, probe_url, check_interval, fail_threshold и recover_threshold.",
+            "en": "Set gateway, host, source, interface, local_networks, probe_url, check_interval, fail_threshold and recover_threshold."
+          },
+          "request": {
+            "revision": 1,
+            "source": "192.168.50.0/24",
+            "interface": "bridge",
+            "probe_url": "https://www.gstatic.com/generate_204",
+            "check_interval": 10,
+            "fail_threshold": 3,
+            "recover_threshold": 2
+          }
+        }
+      ]
+    },
+    {
+      "slug": "updates",
+      "title": {
+        "ru": "Обновления",
+        "en": "Updates"
+      },
+      "paragraphs": [
+        {
+          "ru": "Проверка выбирает более новую версию с опубликованными образами Gateway и Updater. Установка использует закреплённые digest, сохраняет данные, пересоздаёт Compose-сервисы и выполняет откат при неуспешной проверке.",
+          "en": "Checks select a newer version with published Gateway and Updater images. Installation pins image digests, backs up data, recreates the Compose services and rolls back if verification fails."
+        },
+        {
+          "ru": "Автоустановка по умолчанию отключена, периодическая проверка включена. Настройте отдельную службу updater; Docker socket доступен только ей, а не панели. Во время установки операции записи возвращают 503.",
+          "en": "Automatic installation is off by default; periodic checks are on. Configure the updater service, which alone receives the Docker socket. Write operations return 503 during installation."
+        }
+      ],
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/updates",
+          "role": "user",
+          "description": {
+            "ru": "Текущая и доступная версии, время проверки, подключение службы и задание. Настройки и подробный журнал доступны администратору.",
+            "en": "Current and available versions, check time, updater availability and job status. Settings and detailed logs require an administrator."
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/updates/check",
+          "role": "admin",
+          "description": {
+            "ru": "Запускает проверку в фоне и возвращает 202. Повторные проверки ограничены одной в минуту.",
+            "en": "Start a background check and return 202. Checks are limited to once per minute."
+          },
+          "request": {}
+        },
+        {
+          "method": "POST",
+          "path": "/api/updates/settings",
+          "role": "admin",
+          "description": {
+            "ru": "Период проверки: от 1 до 168 часов. auto_install управляет автоматической установкой.",
+            "en": "Check interval: 1 to 168 hours. auto_install controls automatic installation."
+          },
+          "request": {
+            "check_interval_hours": 6,
+            "auto_install": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/updates/install",
+          "role": "admin",
+          "description": {
+            "ru": "Устанавливает доступный tag из результата проверки. Возвращает 202 с id задания; читайте /api/updates для хода операции.",
+            "en": "Install the available tag returned by a check. Returns 202 with the job ID; read /api/updates for progress."
+          },
+          "request": {
+            "tag": "1.9.0-abcdef0"
+          },
+          "response": {
+            "id": "update-job-id"
+          }
+        }
+      ]
+    }
+  ]
+}

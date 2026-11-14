@@ -1,0 +1,36 @@
+<h2 data-i18n="Терминал RouterOS">Терминал RouterOS</h2>
+<p data-i18n="Терминал использует SSH PTY и связан с пользователем и сессией. Сырой вывод передаётся в base64. Простой завершает соединение через пять минут; максимальная длительность — час.">Терминал использует SSH PTY и связан с пользователем и сессией. Сырой вывод передаётся в base64. Простой завершает соединение через пять минут; максимальная длительность — час.</p>
+<section class="api-endpoint" id="terminal-1"><h3><code>POST</code> <code>/api/routeros/terminal/open</code></h3><span class="api-role">admin</span>
+<p data-i18n="Открывает терминал и возвращает id.">Открывает терминал и возвращает id.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;cols&quot;: 100,
+  &quot;rows&quot;: 30
+}</code></pre>
+<h4 data-i18n="Ответ">Ответ</h4><pre><code>{
+  &quot;id&quot;: &quot;terminal-id&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="terminal-2"><h3><code>GET</code> <code>/api/routeros/terminal/{id}?cursor=0</code></h3><span class="api-role">admin</span>
+<p data-i18n="Читает data, cursor и closed. data нужно декодировать из base64.">Читает data, cursor и closed. data нужно декодировать из base64.</p>
+</section>
+<section class="api-endpoint" id="terminal-3"><h3><code>POST</code> <code>/api/routeros/terminal/input</code></h3><span class="api-role">admin</span>
+<p data-i18n="Отправляет текст, управляющие символы и ответы терминала.">Отправляет текст, управляющие символы и ответы терминала.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;id&quot;: &quot;terminal-id&quot;,
+  &quot;data&quot;: &quot;/system identity print\r&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="terminal-4"><h3><code>POST</code> <code>/api/routeros/terminal/resize</code></h3><span class="api-role">admin</span>
+<p data-i18n="Изменяет размер PTY.">Изменяет размер PTY.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;id&quot;: &quot;terminal-id&quot;,
+  &quot;cols&quot;: 120,
+  &quot;rows&quot;: 36
+}</code></pre>
+</section>
+<section class="api-endpoint" id="terminal-5"><h3><code>POST</code> <code>/api/routeros/terminal/close</code></h3><span class="api-role">admin</span>
+<p data-i18n="Закрывает соединение своей сессии.">Закрывает соединение своей сессии.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;id&quot;: &quot;terminal-id&quot;
+}</code></pre>
+</section>

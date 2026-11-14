@@ -1,0 +1,29 @@
+<h2 data-i18n="IP-списки и домены">IP-списки и домены</h2>
+<p data-i18n="Список принимает IPv4, IPv6, CIDR и доменные имена. Разделяйте записи пробелами, запятыми, точками с запятой или переводами строк. Панель удаляет дубликаты и не разрешает домены заранее в IP.">Список принимает IPv4, IPv6, CIDR и доменные имена. Разделяйте записи пробелами, запятыми, точками с запятой или переводами строк. Панель удаляет дубликаты и не разрешает домены заранее в IP.</p>
+<p data-i18n="Редактирование и удаление используют version конкретного списка. Удаление сначала очищает принадлежащие списку ресурсы RouterOS; при ошибке сохраняет запись панели.">Редактирование и удаление используют version конкретного списка. Удаление сначала очищает принадлежащие списку ресурсы RouterOS; при ошибке сохраняет запись панели.</p>
+<section class="api-endpoint" id="ip-lists-1"><h3><code>POST</code> <code>/api/ip-lists/add</code></h3><span class="api-role">admin</span>
+<p data-i18n="Создаёт список и возвращает list.">Создаёт список и возвращает list.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;name&quot;: &quot;Services&quot;,
+  &quot;addresses&quot;: &quot;example.org\n1.1.1.1\n2606:4700:4700::1111&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="ip-lists-2"><h3><code>POST</code> <code>/api/ip-lists/edit</code></h3><span class="api-role">admin</span>
+<p data-i18n="Обновляет имя и содержимое своего списка.">Обновляет имя и содержимое своего списка.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;id&quot;: &quot;list_0123456789ab&quot;,
+  &quot;version&quot;: 1,
+  &quot;name&quot;: &quot;Services&quot;,
+  &quot;addresses&quot;: &quot;example.org\n1.1.1.1&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="ip-lists-3"><h3><code>POST</code> <code>/api/ip-lists/delete</code></h3><span class="api-role">admin</span>
+<p data-i18n="Запускает очистку RouterOS и удаление списка. Возвращает 202 с id задания; читайте журнал RouterOS.">Запускает очистку RouterOS и удаление списка. Возвращает 202 с id задания; читайте журнал RouterOS.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;id&quot;: &quot;list_0123456789ab&quot;,
+  &quot;version&quot;: 1
+}</code></pre>
+<h4 data-i18n="Ответ">Ответ</h4><pre><code>{
+  &quot;id&quot;: &quot;job-id&quot;
+}</code></pre>
+</section>

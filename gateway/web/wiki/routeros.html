@@ -1,0 +1,49 @@
+<h2 data-i18n="RouterOS и задания">RouterOS и задания</h2>
+<p data-i18n="Настройте SSH-доступ и закрепите отпечаток ключа хоста. Секреты сохраняются зашифрованными. Пустые поля секрета при сохранении того же подключения сохраняют существующие значения.">Настройте SSH-доступ и закрепите отпечаток ключа хоста. Секреты сохраняются зашифрованными. Пустые поля секрета при сохранении того же подключения сохраняют существующие значения.</p>
+<section class="api-endpoint" id="routeros-1"><h3><code>GET</code> <code>/api/routeros/config</code></h3><span class="api-role">admin</span>
+<p data-i18n="Параметры SSH без пароля и приватного ключа; configured и passphrase_set указывают сохранённое состояние.">Параметры SSH без пароля и приватного ключа; configured и passphrase_set указывают сохранённое состояние.</p>
+</section>
+<section class="api-endpoint" id="routeros-2"><h3><code>POST</code> <code>/api/routeros/host-key</code></h3><span class="api-role">admin</span>
+<p data-i18n="Получает отпечаток для проверки администратором.">Получает отпечаток для проверки администратором.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;host&quot;: &quot;192.168.50.1&quot;,
+  &quot;port&quot;: 22
+}</code></pre>
+</section>
+<section class="api-endpoint" id="routeros-3"><h3><code>POST</code> <code>/api/routeros/config</code></h3><span class="api-role">admin</span>
+<p data-i18n="Проверяет и сохраняет SSH-подключение. Для ключа используйте private_key и необязательную passphrase, для пароля — password.">Проверяет и сохраняет SSH-подключение. Для ключа используйте private_key и необязательную passphrase, для пароля — password.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;host&quot;: &quot;192.168.50.1&quot;,
+  &quot;port&quot;: 22,
+  &quot;username&quot;: &quot;xray-panel&quot;,
+  &quot;auth&quot;: &quot;key&quot;,
+  &quot;fingerprint&quot;: &quot;SHA256:verified-host-key&quot;,
+  &quot;private_key&quot;: &quot;&lt;OpenSSH private key&gt;&quot;,
+  &quot;passphrase&quot;: &quot;&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="routeros-4"><h3><code>POST</code> <code>/api/routeros</code></h3><span class="api-role">user</span>
+<p data-i18n="Генерирует скрипт без выполнения. Можно указать list_id или destinations, source, interface и local_networks.">Генерирует скрипт без выполнения. Можно указать list_id или destinations, source, interface и local_networks.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;list_id&quot;: &quot;list_0123456789ab&quot;,
+  &quot;source&quot;: &quot;192.168.50.0/24&quot;,
+  &quot;interface&quot;: &quot;bridge&quot;,
+  &quot;local_networks&quot;: &quot;192.168.50.0/24&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="routeros-5"><h3><code>POST</code> <code>/api/routeros/apply</code></h3><span class="api-role">admin</span>
+<p data-i18n="Устанавливает или заменяет список. Возвращает 202 с id задания.">Устанавливает или заменяет список. Возвращает 202 с id задания.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;id&quot;: &quot;list_0123456789ab&quot;,
+  &quot;version&quot;: 1
+}</code></pre>
+<h4 data-i18n="Ответ">Ответ</h4><pre><code>{
+  &quot;id&quot;: &quot;job-id&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="routeros-6"><h3><code>GET</code> <code>/api/routeros/jobs</code></h3><span class="api-role">admin</span>
+<p data-i18n="Список недавних операций.">Список недавних операций.</p>
+</section>
+<section class="api-endpoint" id="routeros-7"><h3><code>GET</code> <code>/api/routeros/jobs/{id}?cursor=0</code></h3><span class="api-role">admin</span>
+<p data-i18n="Возвращает status, logs и следующий cursor. Состояния: queued, running, done, error.">Возвращает status, logs и следующий cursor. Состояния: queued, running, done, error.</p>
+</section>

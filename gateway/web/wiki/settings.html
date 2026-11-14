@@ -1,0 +1,14 @@
+<h2 data-i18n="Настройки панели">Настройки панели</h2>
+<p data-i18n="GET /api/state содержит settings и их revision. Меняйте только нужные поля и передавайте актуальную ревизию. Настройки маршрута используются при операциях RouterOS; пользовательские значения сохраняются между перезапусками.">GET /api/state содержит settings и их revision. Меняйте только нужные поля и передавайте актуальную ревизию. Настройки маршрута используются при операциях RouterOS; пользовательские значения сохраняются между перезапусками.</p>
+<section class="api-endpoint" id="settings-1"><h3><code>POST</code> <code>/api/settings</code></h3><span class="api-role">admin</span>
+<p data-i18n="Настраивает gateway, host, source, interface, local_networks, probe_url, check_interval, fail_threshold и recover_threshold.">Настраивает gateway, host, source, interface, local_networks, probe_url, check_interval, fail_threshold и recover_threshold.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;revision&quot;: 1,
+  &quot;source&quot;: &quot;192.168.50.0/24&quot;,
+  &quot;interface&quot;: &quot;bridge&quot;,
+  &quot;probe_url&quot;: &quot;https://www.gstatic.com/generate_204&quot;,
+  &quot;check_interval&quot;: 10,
+  &quot;fail_threshold&quot;: 3,
+  &quot;recover_threshold&quot;: 2
+}</code></pre>
+</section>

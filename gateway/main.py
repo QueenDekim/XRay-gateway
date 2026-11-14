@@ -9,6 +9,8 @@ import time
 import urllib.request
 from controller import Controller, ports
 from panel import Panel
+from updates import Updates
+import session_store
 from environment import lan_cidr, ingress_interface, service_port
 from bootstrap import initialize_accounts
 
@@ -179,6 +181,9 @@ if __name__ == '__main__':
     if controller.load('stats_since', None) is None:
         controller.save('stats_since', time.time())
     configure()
+    controller.updates=Updates(controller)
+    threading.Thread(target=controller.updates.run,daemon=True).start()
+    Panel.sessions=session_store.load(controller)
     Panel.controller = controller
     Panel.snapshot = staticmethod(snapshot)
     for path in filter(None, os.environ.get('INVENTORY_FILES', '').split(os.pathsep)):

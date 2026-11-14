@@ -32,3 +32,8 @@ license. The files, license texts and package integrity values are in
 
 Development checks use `@xterm/headless` 6.0.0 from the same xterm.js project
 under the MIT license. Production containers use the bundled browser assets.
+
+The updater image installs [Docker CLI](https://github.com/docker/cli) and
+[Docker Compose](https://github.com/docker/compose), both under Apache-2.0,
+from Alpine packages. Package metadata and installed license files describe
+their dependencies.

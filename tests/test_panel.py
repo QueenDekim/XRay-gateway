@@ -169,7 +169,7 @@ class PanelTest(unittest.TestCase):
         self.assertEqual(response.getheader('Content-Type'), 'image/png')
         self.assertEqual(response.read(), (ROOT / 'gateway/web/favicon.png').read_bytes())
         conn.close()
-        self.assertIn(b'href="/favicon.png"', self.request('/')[1])
+        self.assertIn(b'href="/favicon.png"', self.request('/login')[1])
 
     def test_legacy_account_migration_keeps_access_and_redacts_credentials(self):
         original = json.loads((self.root / 'auth.json').read_text())

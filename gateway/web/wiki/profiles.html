@@ -1,0 +1,64 @@
+<h2 data-i18n="Профили и подписки">Профили и подписки</h2>
+<p data-i18n="Каждый профиль имеет собственный приоритет от 1 до 1000. Меньшее число имеет преимущество среди доступных включённых профилей. Изменение конфигурации проверяет её и перезапускает Xray.">Каждый профиль имеет собственный приоритет от 1 до 1000. Меньшее число имеет преимущество среди доступных включённых профилей. Изменение конфигурации проверяет её и перезапускает Xray.</p>
+<p data-i18n="Для подписки сначала получите кандидатов. Токен выбора связан с сессией и действует пять минут. При добавлении можно выбрать несколько профилей, при замене — один. Повторный импорт обновляет совпавшие записи своей группы.">Для подписки сначала получите кандидатов. Токен выбора связан с сессией и действует пять минут. При добавлении можно выбрать несколько профилей, при замене — один. Повторный импорт обновляет совпавшие записи своей группы.</p>
+<section class="api-endpoint" id="profiles-1"><h3><code>POST</code> <code>/api/profiles/preview</code></h3><span class="api-role">admin</span>
+<p data-i18n="Загружает VLESS-подписку и возвращает token, profiles, skipped и group. В profiles указаны id кандидата, имя, адрес, порт, транспорт и защита.">Загружает VLESS-подписку и возвращает token, profiles, skipped и group. В profiles указаны id кандидата, имя, адрес, порт, транспорт и защита.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;uri&quot;: &quot;https://example.org/subscription/token&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="profiles-2"><h3><code>POST</code> <code>/api/profiles/add</code></h3><span class="api-role">admin</span>
+<p data-i18n="Добавляет профиль. Для подписки передайте token, выбранные ID и отдельные имена и приоритеты. revision берите из /api/state.">Добавляет профиль. Для подписки передайте token, выбранные ID и отдельные имена и приоритеты. revision берите из /api/state.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;revision&quot;: 1,
+  &quot;uri&quot;: &quot;https://example.org/subscription/token&quot;,
+  &quot;enabled&quot;: true,
+  &quot;name&quot;: &quot;&quot;,
+  &quot;priority&quot;: 10,
+  &quot;subscription_token&quot;: &quot;selection-token&quot;,
+  &quot;subscription_profiles&quot;: [
+    &quot;candidate-id&quot;
+  ],
+  &quot;subscription_name&quot;: &quot;My subscription&quot;,
+  &quot;subscription_options&quot;: {
+    &quot;candidate-id&quot;: {
+      &quot;name&quot;: &quot;Primary&quot;,
+      &quot;priority&quot;: 10
+    }
+  }
+}</code></pre>
+<h4 data-i18n="Ответ">Ответ</h4><pre><code>{
+  &quot;ok&quot;: true
+}</code></pre>
+</section>
+<section class="api-endpoint" id="profiles-3"><h3><code>POST</code> <code>/api/profiles/edit</code></h3><span class="api-role">admin</span>
+<p data-i18n="Принимает id профиля и текущую revision. Пустой uri сохраняет подключение; name, priority и enabled редактируются отдельно.">Принимает id профиля и текущую revision. Пустой uri сохраняет подключение; name, priority и enabled редактируются отдельно.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;id&quot;: &quot;primary&quot;,
+  &quot;revision&quot;: 2,
+  &quot;name&quot;: &quot;Primary&quot;,
+  &quot;priority&quot;: 5,
+  &quot;enabled&quot;: true,
+  &quot;uri&quot;: &quot;&quot;
+}</code></pre>
+<h4 data-i18n="Ответ">Ответ</h4><pre><code>{
+  &quot;ok&quot;: true
+}</code></pre>
+</section>
+<section class="api-endpoint" id="profiles-4"><h3><code>POST</code> <code>/api/profiles/delete</code></h3><span class="api-role">admin</span>
+<p data-i18n="Удаляет профиль. Нужны id и revision.">Удаляет профиль. Нужны id и revision.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;id&quot;: &quot;primary&quot;,
+  &quot;revision&quot;: 2
+}</code></pre>
+<h4 data-i18n="Ответ">Ответ</h4><pre><code>{
+  &quot;ok&quot;: true
+}</code></pre>
+</section>
+<section class="api-endpoint" id="profiles-5"><h3><code>POST</code> <code>/api/profiles/reset-checks</code></h3><span class="api-role">admin</span>
+<p data-i18n="Сбрасывает только число проверок и успешных проверок. Счётчики трафика сохраняются.">Сбрасывает только число проверок и успешных проверок. Счётчики трафика сохраняются.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{}</code></pre>
+<h4 data-i18n="Ответ">Ответ</h4><pre><code>{
+  &quot;ok&quot;: true
+}</code></pre>
+</section>

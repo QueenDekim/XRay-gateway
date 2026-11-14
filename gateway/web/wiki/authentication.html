@@ -1,0 +1,31 @@
+<h2 data-i18n="Вход и сессии">Вход и сессии</h2>
+<p data-i18n="Сессия действует 12 часов. Панель хранит сессии зашифрованными и проверяет ревизию учётной записи при каждом обращении. Смена пароля и прав отзывает старые сессии.">Сессия действует 12 часов. Панель хранит сессии зашифрованными и проверяет ревизию учётной записи при каждом обращении. Смена пароля и прав отзывает старые сессии.</p>
+<p data-i18n="Если у пользователя включена 2FA, первый запрос возвращает challenge без cookie. Передайте challenge и code во второй запрос. Незавершённый вход истекает через три минуты.">Если у пользователя включена 2FA, первый запрос возвращает challenge без cookie. Передайте challenge и code во второй запрос. Незавершённый вход истекает через три минуты.</p>
+<section class="api-endpoint" id="authentication-1"><h3><code>POST</code> <code>/api/login</code></h3><span class="api-role">public</span>
+<p data-i18n="Проверка логина и пароля. При успехе без 2FA устанавливает cookie.">Проверка логина и пароля. При успехе без 2FA устанавливает cookie.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;username&quot;: &quot;admin&quot;,
+  &quot;password&quot;: &quot;example-password&quot;
+}</code></pre>
+<h4 data-i18n="Ответ">Ответ</h4><pre><code>{
+  &quot;requires_2fa&quot;: true,
+  &quot;challenge&quot;: &quot;temporary-challenge&quot;
+}</code></pre>
+</section>
+<section class="api-endpoint" id="authentication-2"><h3><code>POST</code> <code>/api/login/2fa</code></h3><span class="api-role">public</span>
+<p data-i18n="Завершает вход по одноразовому коду или коду восстановления.">Завершает вход по одноразовому коду или коду восстановления.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{
+  &quot;challenge&quot;: &quot;temporary-challenge&quot;,
+  &quot;code&quot;: &quot;123456&quot;
+}</code></pre>
+<h4 data-i18n="Ответ">Ответ</h4><pre><code>{
+  &quot;ok&quot;: true
+}</code></pre>
+</section>
+<section class="api-endpoint" id="authentication-3"><h3><code>POST</code> <code>/api/logout</code></h3><span class="api-role">user</span>
+<p data-i18n="Отзывает текущую сессию и закрывает её терминал RouterOS.">Отзывает текущую сессию и закрывает её терминал RouterOS.</p>
+<h4 data-i18n="Запрос">Запрос</h4><pre><code>{}</code></pre>
+<h4 data-i18n="Ответ">Ответ</h4><pre><code>{
+  &quot;ok&quot;: true
+}</code></pre>
+</section>

@@ -51,7 +51,7 @@ strong, b { font-weight: 500; }
 .eyebrow { display: block; margin-bottom: 8px; }
 .mono, strong, small, .badge { font-variant-numeric: tabular-nums; }
 .mono { font-family: Consolas, "Liberation Mono", monospace; }
-.primary, .secondary, .text-button, nav button, td button {
+.primary, .secondary, .text-button, aside nav :is(button,a), td button {
   transition: color 150ms var(--ease), background-color 150ms var(--ease), border-color 150ms var(--ease);
 }
 .primary, .secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 20px; line-height: 20px; white-space: nowrap; font-weight: 500; border-radius: 0; }
@@ -96,10 +96,10 @@ aside { position: fixed; inset: 0 auto 0 0; width: 240px; background: var(--side
 .logo-caption { display: block; font-size: 14px; font-weight: 400; margin-top: 8px; padding-left: 44px; color: var(--side-muted); }
 .nav-label { margin: 48px 16px 8px; color: var(--side-muted); }
 nav { margin-top: 32px; }
-nav button { display: flex; align-items: center; width: 100%; height: 36px; line-height: 20px; background: transparent; color: var(--side-muted); text-align: left; padding: 8px 16px; margin-bottom: 4px; border-left: 2px solid transparent; }
-nav button:hover { background: var(--nav-selected); color: var(--side-text); }
-nav button.active { background: var(--nav-selected); color: var(--side-text); border-left-color: var(--accent); }
-nav button:focus-visible { outline-color: var(--accent); }
+aside nav :is(button,a) { display: flex; align-items: center; width: 100%; height: 36px; line-height: 20px; background: transparent; color: var(--side-muted); text-align: left; padding: 8px 16px; margin-bottom: 4px; border-left: 2px solid transparent; }
+aside nav :is(button,a):hover { background: var(--nav-selected); color: var(--side-text); }
+aside nav :is(button,a).active { background: var(--nav-selected); color: var(--side-text); border-left-color: var(--accent); }
+aside nav :is(button,a):focus-visible { outline-color: var(--accent); }
 .aside-bottom { position: absolute; bottom: 32px; left: 32px; font-size: 12px; line-height: 1.8; color: var(--side-text); }
 .aside-bottom small { color: var(--side-muted); }
 .dot { display: inline-block; width: 6px; height: 6px; background: var(--side-muted); margin-right: 8px; }
@@ -220,7 +220,7 @@ dialog textarea { font: 12px/1.7 Consolas, "Liberation Mono", monospace; }
   .logo-caption { margin: 0; padding-left: 0; }
   .nav-label, .aside-bottom { display: none; }
   nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 16px; }
-  nav button { margin: 0; height: 44px; justify-content: center; padding: 12px 8px; }
+  aside nav :is(button,a) { margin: 0; height: 44px; justify-content: center; padding: 12px 8px; }
   .workspace { margin: 0; width: 100%; }
   header { padding: 0 20px; height: 56px; }
   .header-right { width: 100%; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
@@ -289,7 +289,7 @@ dialog textarea { font: 12px/1.7 Consolas, "Liberation Mono", monospace; }
   --notice-text: #e4ca97;
   --notice-border: #cba462;
 }
-.primary, .secondary, .text-button, td button, nav button, .core-status { border-radius: var(--radius-control); }
+.primary, .secondary, .text-button, td button, aside nav :is(button,a), .core-status { border-radius: var(--radius-control); }
 input, textarea, select { border-radius: var(--radius-field); }
 .metrics, .chart-panel, .profile-card, .panel, .table-wrap { border-radius: var(--radius-panel); }
 .metrics { overflow: hidden; }
@@ -465,9 +465,9 @@ main { min-height: calc(100vh - 64px); }
 :root[data-design="titan"] .logo { font-size: 28px; }
 :root[data-design="titan"] .logo-caption { font-size: 12px; margin-top: 12px; }
 :root[data-design="titan"] nav { margin-top: 40px; }
-:root[data-design="titan"] nav button { gap: 12px; border-left: 0; border-radius: 4px; padding: 8px 12px; }
-:root[data-design="titan"] nav button.active { box-shadow: inset 2px 0 var(--side-text); }
-:root[data-design="titan"] nav button:focus-visible { outline-color: var(--side-text); }
+:root[data-design="titan"] aside nav :is(button,a) { gap: 12px; border-left: 0; border-radius: 4px; padding: 8px 12px; }
+:root[data-design="titan"] aside nav :is(button,a).active { box-shadow: inset 2px 0 var(--side-text); }
+:root[data-design="titan"] aside nav :is(button,a):focus-visible { outline-color: var(--side-text); }
 :root[data-design="titan"] .nav-icon { display: block; }
 :root[data-design="titan"] header { background: var(--surface); }
 :root[data-design="titan"] .core-status { border-radius: 4px; background: transparent; border-width: 0 0 0 1px; padding-left: 20px; }
@@ -524,9 +524,9 @@ main { min-height: calc(100vh - 64px); }
 :root[data-design="paper"] .logo { font-family: var(--font-display); padding: 0 8px; font-size: 28px; }
 :root[data-design="paper"] .logo-caption { font-family: var(--font-ui); font-size: 12px; }
 :root[data-design="paper"] nav { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); }
-:root[data-design="paper"] nav button { min-height: 44px; height: auto; font: 400 18px/1.5 var(--font-display); color: var(--ink); border: 0; border-radius: 0; padding: 8px; margin: 0 0 4px; background: transparent; }
-:root[data-design="paper"] nav button.active { background: transparent; text-decoration: underline; text-underline-offset: 8px; text-decoration-color: var(--accent); text-decoration-thickness: 2px; }
-:root[data-design="paper"] nav button:hover { background: var(--raised); }
+:root[data-design="paper"] aside nav :is(button,a) { min-height: 44px; height: auto; font: 400 18px/1.5 var(--font-display); color: var(--ink); border: 0; border-radius: 0; padding: 8px; margin: 0 0 4px; background: transparent; }
+:root[data-design="paper"] aside nav :is(button,a).active { background: transparent; text-decoration: underline; text-underline-offset: 8px; text-decoration-color: var(--accent); text-decoration-thickness: 2px; }
+:root[data-design="paper"] aside nav :is(button,a):hover { background: var(--raised); }
 :root[data-design="paper"] header { background: transparent; border-bottom: 3px double var(--line); }
 :root[data-design="paper"] .core-status { border: 0; border-radius: 0; border-left: 1px solid var(--line); background: transparent; padding-left: 20px; }
 :root[data-design="paper"] .icon-button { border-radius: 0; }
@@ -596,10 +596,10 @@ main { min-height: calc(100vh - 64px); }
 :root[data-design="console"] .logo { padding: 0; font-size: 24px; }
 :root[data-design="console"] .logo-caption { padding-left: 44px; font-size: 12px; }
 :root[data-design="console"] nav { margin-top: 32px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 8px 0; }
-:root[data-design="console"] nav button { border: 0; border-radius: 0; padding: 8px; margin: 0; height: 36px; }
-:root[data-design="console"] nav button::before { content: ' '; white-space: pre; width: 16px; flex: 0 0 16px; }
-:root[data-design="console"] nav button.active { background: var(--ink); color: var(--paper); }
-:root[data-design="console"] nav button.active::before { content: '>'; }
+:root[data-design="console"] aside nav :is(button,a) { border: 0; border-radius: 0; padding: 8px; margin: 0; height: 36px; }
+:root[data-design="console"] aside nav :is(button,a)::before { content: ' '; white-space: pre; width: 16px; flex: 0 0 16px; }
+:root[data-design="console"] aside nav :is(button,a).active { background: var(--ink); color: var(--paper); }
+:root[data-design="console"] aside nav :is(button,a).active::before { content: '>'; }
 :root[data-design="console"] header { background: var(--paper); border-bottom: 1px solid var(--field-border); height: 56px; padding: 0 24px; }
 :root[data-design="console"] .core-status { border: 1px solid var(--line); border-radius: 0; padding: 4px 8px; min-height: 28px; background: var(--surface); }
 :root[data-design="console"] .icon-button { border-radius: 0; border: 1px solid transparent; }
@@ -674,9 +674,9 @@ main { min-height: calc(100vh - 64px); }
 :root[data-design="contour"] .logo { font-size: 32px; }
 :root[data-design="contour"] .logo-caption { font-size: 13px; }
 :root[data-design="contour"] nav { border-radius: 16px; padding: 8px; background: var(--surface); margin-top: 32px; box-shadow: var(--soft-shadow); }
-:root[data-design="contour"] nav button { height: 44px; gap: 12px; padding: 12px; border: 0; border-radius: 10px; margin-bottom: 4px; font-size: 15px; }
-:root[data-design="contour"] nav button:last-child { margin-bottom: 0; }
-:root[data-design="contour"] nav button.active { background: var(--paper); color: var(--ink); }
+:root[data-design="contour"] aside nav :is(button,a) { height: 44px; gap: 12px; padding: 12px; border: 0; border-radius: 10px; margin-bottom: 4px; font-size: 15px; }
+:root[data-design="contour"] aside nav :is(button,a):last-child { margin-bottom: 0; }
+:root[data-design="contour"] aside nav :is(button,a).active { background: var(--paper); color: var(--ink); }
 :root[data-design="contour"] .nav-icon { display: block; }
 :root[data-design="contour"] header { height: 80px; background: transparent; border: 0; }
 :root[data-design="contour"] .core-status { min-height: 36px; border: 0; border-radius: 10px; background: var(--surface); padding: 8px 12px; }
@@ -787,11 +787,11 @@ main { min-height: calc(100vh - 64px); }
 @media (max-width: 700px) {
   :root[data-design] aside { position: static; padding: 16px; }
   :root[data-design] nav { margin-top: 16px; }
-  :root[data-design="titan"] nav button, :root[data-design="paper"] nav button, :root[data-design="console"] nav button { min-height: 44px; height: auto; margin: 0; }
+  :root[data-design="titan"] aside nav :is(button,a), :root[data-design="paper"] aside nav :is(button,a), :root[data-design="console"] aside nav :is(button,a) { min-height: 44px; height: auto; margin: 0; }
   :root[data-design="paper"] nav { padding-top: 12px; }
-  :root[data-design="paper"] nav button { font-size: 16px; }
+  :root[data-design="paper"] aside nav :is(button,a) { font-size: 16px; }
   :root[data-design="contour"] nav { padding: 8px; }
-  :root[data-design="contour"] nav button { margin-bottom: 0; }
+  :root[data-design="contour"] aside nav :is(button,a) { margin-bottom: 0; }
   :root[data-design] header { min-height: 64px; height: auto; padding: 8px 20px; }
   :root[data-design] main { padding: 24px 20px; }
   :root[data-design="titan"] h1, :root[data-design="contour"] h1 { font-size: 28px; }
@@ -931,3 +931,31 @@ main { min-height: calc(100vh - 64px); }
  .subscription-option { grid-template-columns: 44px minmax(0,1fr); }
  .subscription-priority { grid-column: 2; width: 104px; }
 }
+
+nav a, .account-controls a { text-decoration: none; }
+
+.update-notice { display: grid; gap: 8px; margin-bottom: 16px; padding: 12px; border: 1px solid var(--side-muted); border-radius: var(--radius-field); font-size: 12px; color: var(--side-text); }
+.update-notice a { color: inherit; font-family: Consolas, monospace; overflow-wrap: anywhere; }
+.update-notice button { justify-self: start; min-height: 32px; padding: 4px 12px; font-size: 12px; }
+.update-versions { display: flex; flex-wrap: wrap; gap: 24px; margin: 24px 0; }
+.update-versions dt { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.update-versions dd { margin: 0; }
+.updates-panel > .primary { width: auto; margin: 0; }
+#updateSettingsForm { margin-top: 32px; padding-top: 8px; border-top: 1px solid var(--line); }
+#updateCheckInterval { max-width: 104px; }
+#updateJobPanel { margin-top: 24px; }
+.wiki-layout { display: grid; grid-template-columns: 208px minmax(0,1fr); gap: 32px; align-items: start; }
+.wiki-navigation { display: grid; gap: 4px; position: sticky; top: 24px; }
+.wiki-navigation a { display: block; padding: 8px 12px; color: var(--secondary); text-decoration: none; border-left: 2px solid transparent; font-size: 13px; }
+.wiki-navigation a[aria-current] { border-left-color: var(--accent); color: var(--ink); background: var(--raised); }
+.wiki-article { min-width: 0; max-width: 920px; }
+.wiki-article h2 { margin: 0 0 24px; }
+.wiki-article p { line-height: 1.7; margin: 16px 0; overflow-wrap: anywhere; }
+.api-endpoint { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); scroll-margin-top: 24px; }
+.api-endpoint h3 { margin: 0 0 8px; font-size: 16px; overflow-wrap: anywhere; }
+.api-role { color: var(--muted); font: 12px/1.5 Consolas, monospace; }
+.api-endpoint h4 { margin: 24px 0 8px; font-size: 13px; font-weight: 500; }
+.wiki-article pre { overflow-x: auto; padding: 16px; margin: 0; border: 1px solid var(--line); background: var(--raised); border-radius: var(--radius-field); }
+.wiki-article code { font: 12px/1.7 Consolas, monospace; }
+@media (max-width: 900px) { .wiki-layout { grid-template-columns: minmax(0,1fr); gap: 24px; } .wiki-navigation { position: static; display: flex; flex-wrap: wrap; } }
+@media (max-width: 700px) { .update-notice button { min-height: 44px; } }

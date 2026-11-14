@@ -26,18 +26,18 @@
   document.addEventListener('languagechange', () => apply());
   document.addEventListener('DOMContentLoaded', () => {
     apply();
-    document.getElementById('themeToggle').addEventListener('click', () => {
+    document.getElementById('themeToggle')?.addEventListener('click', () => {
       theme = theme === 'dark' ? 'light' : 'dark';
       save();
     });
-    document.getElementById('appearanceForm').addEventListener('change', event => {
+    document.getElementById('appearanceForm')?.addEventListener('change', event => {
       const input = event.target;
       if (input.name === 'design' && designs.includes(input.value)) design = input.value;
       else if (input.name === 'colorScheme' && ['light', 'dark'].includes(input.value)) theme = input.value;
       else return;
       save();
     });
-    document.getElementById('appearanceForm').addEventListener('submit', event => event.preventDefault());
+    document.getElementById('appearanceForm')?.addEventListener('submit', event => event.preventDefault());
   });
   window.addEventListener('storage', event => {
     if (event.key === 'xray-design') design = designs.includes(event.newValue) ? event.newValue : 'titan';

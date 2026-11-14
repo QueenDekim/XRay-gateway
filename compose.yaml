@@ -16,6 +16,7 @@ services:
       net.ipv4.conf.all.rp_filter: "0"
       net.ipv4.conf.default.rp_filter: "0"
     environment:
+      UPDATE_CONTROL_DIR: /run/xray-updates
       XRAY_LAN_CIDR: ${LAN_SUBNET:?Set LAN_SUBNET in .env}
       GATEWAY_IP: ${GATEWAY_IP:?Set GATEWAY_IP in .env}
       DOCKER_HOST_IP: ${DOCKER_HOST_IP:?Set DOCKER_HOST_IP in .env}
@@ -34,6 +35,7 @@ services:
     secrets: [admin_password]
     volumes:
       - ./config/runtime:/data
+      - updates-control:/run/xray-updates
     networks:
       data_plane:
         ipv4_address: ${GATEWAY_IP}
@@ -41,6 +43,28 @@ services:
         gw_priority: 100
     healthcheck:
       test: [CMD, python3, -c, "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('HEALTH_PORT','18080')+'/health',timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  updater:
+    image: ${UPDATER_IMAGE:-ghcr.io/queendekim/xray-gateway-updater:latest}
+    build:
+      context: .
+      dockerfile: updater/Dockerfile
+      args:
+        SOURCE_REVISION: ${SOURCE_REVISION:-}
+    restart: unless-stopped
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - updates-control:/control
+    healthcheck:
+      test: [CMD, python3, -c, "import json,time; from pathlib import Path; assert time.time()-json.loads(Path('/control/agent.json').read_text())['heartbeat']<30"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -71,3 +95,6 @@ networks:
 secrets:
   admin_password:
     file: ./secrets/admin_password
+
+volumes:
+  updates-control:

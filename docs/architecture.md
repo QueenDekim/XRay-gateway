@@ -29,5 +29,20 @@ mount. The application validates a candidate configuration before replacing it
 and restores the previous configuration if applying a profile fails.
 
 The optional management bridge gives a reverse proxy a separate path. Compose
-keeps its route priority below the macvlan/ipvlan data plane. The services do not
-mount the Docker socket or change the host firewall.
+keeps its route priority below the macvlan/ipvlan data plane. The gateway and Xray services
+do not mount the Docker socket or change the host firewall.
+
+## Management pages and updates
+
+The HTTP server authenticates document requests before rendering the shared
+shell with one page. It embeds a sanitized state snapshot for that page. The
+standalone sign-in document handles password and two-factor authentication;
+protected pages contain no sign-in form.
+
+The gateway checks GitHub tags and both GHCR image digests. It writes validated
+update requests to the shared `updates-control` volume. The updater service
+owns the Docker socket and launches a detached worker, so restarting the three
+Compose services does not terminate installation. The worker preserves the
+project's Compose files and network identities, backs up runtime state, then
+checks the new version and health. It restores the old images and data if those
+checks fail. See [Updates](updates.md) for scope and recovery.

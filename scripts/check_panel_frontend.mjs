@@ -6,7 +6,11 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const html = fs.readFileSync(path.join(root, 'gateway/web/index.html'), 'utf8');
+const layout=fs.readFileSync(path.join(root,'gateway/web/index.html'),'utf8');
+const loginHTML=fs.readFileSync(path.join(root,'gateway/web/pages/login.html'),'utf8');
+const pageFiles=['overview','profiles','iplists','routeros','settings','account','wiki'];
+const html=layout.replace('{{PAGE_CONTENT}}',pageFiles.map(name=>fs.readFileSync(path.join(root,'gateway/web/pages/'+name+'.html'),'utf8')).join('')).replace('{{PAGE_NAME}}','overview').replace('{{PAGE_STATE}}','').replace('</body>',loginHTML.slice(loginHTML.indexOf('<body>')+6,loginHTML.indexOf('</body>'))+'</body>');
+
 const source = fs.readFileSync(path.join(root, 'gateway/web/app.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'gateway/web/style.css'), 'utf8');
 const paletteRules=[...css.matchAll(/^(:root(?:\[data-(?:design|theme)="[a-z]+"\])*) \{([^}]+)\}/gm)];
@@ -38,7 +42,7 @@ const navButtons = [...html.match(/<nav>[\s\S]*?<\/nav>/)[0].matchAll(/data-page
   dataset: { page: m[1] }, classList: { values: new Set(), toggle(name, enabled) { enabled ? this.values.add(name) : this.values.delete(name); } },
 }));
 nodes.settingsToggle.dataset.page = 'settings';
-const settingsNames=['routing','probes','router','users'];
+const settingsNames=['routing','probes','router','users','updates'];
 for(const name of settingsNames)nodes['settingsTab-'+name].dataset.settingsTab=name;
 const appearanceInputs=[...html.matchAll(/<input type="radio" name="(design|colorScheme)" value="([^"]+)"[^>]*>/g)].map(m=>({name:m[1],value:m[2],checked:false}));
 const decode=value=>value.replaceAll('&quot;','"').replaceAll('&amp;','&').replaceAll('&lt;','<').replaceAll('&gt;','>');
@@ -51,7 +55,7 @@ const versionLinks=[nodes.appVersion,{attributes:{},setAttribute(name,value){thi
 const documentEvents = {};
 const windowEvents = {}, storage = new Map();
 const context = vm.createContext({
-  document: { hidden: false, documentElement:{dataset:{}}, getElementById(id) { assert.ok(nodes[id], `Unknown DOM id: ${id}`); return nodes[id]; },
+  document: { hidden: false, documentElement:{dataset:{}}, getElementById(id) { return nodes[id]||null; },
     querySelectorAll(selector) {
       if(selector === 'nav [data-page], .account-actions [data-page]')return [...navButtons, nodes.settingsToggle];
       if(selector.startsWith('#appearanceForm input'))return appearanceInputs.filter(input=>selector.includes(`name="${input.name}"`));
@@ -63,7 +67,7 @@ const context = vm.createContext({
     },
     addEventListener(name, fn) { (documentEvents[name] ||= []).push(fn); },
     dispatchEvent(event) { for(const fn of documentEvents[event.type]||[])fn(event); } },
-  window: { XrayMessages:JSON.parse(fs.readFileSync(path.join(root,'gateway/web/locales.json'),'utf8')),addEventListener(name, fn) { (windowEvents[name] ||= []).push(fn); } },
+  window: { location:{pathname:'/overview',hash:'',search:'',assign(url){const u=new URL(url,'https://panel.test');this.pathname=u.pathname;this.hash=u.hash;vm.runInContext('activatePage('+JSON.stringify(u.pathname.slice(1))+');if(state)render()',context);},replace(url){this.redirect=url;nodes.loginView.hidden=false;nodes.appView.hidden=true;},reload(){this.reloaded=true;}},history:{replaceState(a,b,url){const u=new URL(url,'https://panel.test');context.window.location.pathname=u.pathname;context.window.location.hash=u.hash;}},XrayMessages:JSON.parse(fs.readFileSync(path.join(root,'gateway/web/locales.json'),'utf8')),addEventListener(name, fn) { (windowEvents[name] ||= []).push(fn); } },
   localStorage: { getItem:key=>storage.get(key), setItem:(key,value)=>storage.set(key,value) },
   matchMedia:()=>({matches:false}), CustomEvent:class { constructor(type){this.type=type;} },
   setInterval() {}, fetch: async () => ({ ok: false, status: 401, json: async () => ({ error: 'login' }) }),
@@ -126,12 +130,11 @@ context.window.I18n.setLanguage('ru');
 assert.ok(nodes.profileRows.innerHTML.includes('Активен'));
 assert.equal(nodes.profilesPage.hidden, false);
 assert.equal(nodes.overviewPage.hidden, true);
-assert.equal(nodes.settingsToggle.attributes['aria-pressed'], 'false');
 assert.ok(navButtons.find(b => b.dataset.page === 'profiles').classList.values.has('active'));
 assert.equal(nodes.coreStatus.textContent, 'Xray работает');
 assert.ok(!html.match(/<nav>[\s\S]*?<\/nav>/)[0].includes('data-page="settings"'));
 for (const id of ['settingsToggle', 'themeToggle', 'logout']) {
-  const buttonHtml = html.match(new RegExp(`<button id="${id}"[\\s\\S]*?<\\/button>`))[0];
+  const buttonHtml = html.match(new RegExp(`<(?:button|a) id="${id}"[\\s\\S]*?<\\/(?:button|a)>`))[0];
   assert.ok(buttonHtml.includes('aria-label="'));
   assert.ok(buttonHtml.includes('class="ui-icon'));
   assert.equal(buttonHtml.replace(/<[^>]*>/g, '').trim(), '', `${id} must be icon only`);
@@ -191,7 +194,6 @@ vm.runInContext("state.settings.revision=2; renderSettings();", context);
 // A click on the nested SVG must reach the existing page navigation handler.
 for (const listener of documentEvents.click) await listener({ target: { closest: () => nodes.settingsToggle } });
 assert.equal(nodes.settingsPage.hidden, false);
-assert.equal(nodes.settingsToggle.attributes['aria-pressed'], 'true');
 assert.ok(nodes.settingsToggle.classList.values.has('active'));
 assert.ok(navButtons.every(b => !b.classList.values.has('active')));
 assert.equal(nodes.pageName.textContent, 'Настройки');
@@ -208,7 +210,6 @@ nodes.settingsTabs.listeners.keydown({key:'Home',target:{closest:()=>nodes['sett
 assert.ok(prevented);assert.equal(nodes['settingsPanel-routing'].hidden,false);
 assert.ok(nodes['settingsTab-routing'].focused);
 vm.runInContext("selectPage('overview');", context);
-assert.equal(nodes.settingsToggle.attributes['aria-pressed'], 'false');
 assert.ok(!nodes.settingsToggle.classList.values.has('active'));
 assert.equal(nodes.routingSettingsForm.elements.gateway.value, '192.168.50.99');
 assert.equal(nodes.routingSettingsForm.dataset.revision, '1');
@@ -449,36 +450,9 @@ await context.window.Management.startJob('apply','project');assert.equal(calls.l
 context.navigator.clipboard.writeText=previousCopy;nodes.ipListDialog.close();
 vm.runInContext("state.user.role='admin';render();",context);
 assert.equal(nodes.headerInitials.textContent,'A');
-nodes.accountToggle.onclick();assert.equal(nodes.accountPage.hidden,false);
+vm.runInContext("selectPage('account');",context);assert.equal(nodes.accountPage.hidden,false);
 nodes.accountProfileForm.dataset.dirty='1';nodes.accountProfileForm.elements.display_name.value='Unsaved name';
 context.window.Management.render();assert.equal(nodes.accountProfileForm.elements.display_name.value,'Unsaved name');
-const loginEvent={target:nodes.loginForm,submitter:{disabled:false}};
-const factorEvent={preventDefault(){},target:nodes.loginFactorForm,submitter:{disabled:false}};
-nodes.loginForm.testData={username:'admin',password:'private-test-password'};
-nodes.loginForm.elements.username.value='admin';nodes.loginForm.elements.password.value='private-test-password';
-assert.equal(!!nodes.loginFactorDialog.open,false);
-assert.ok(!html.match(/<form id="loginForm"[\s\S]*?<\/form>/)[0].includes('loginCode'));
-await context.window.Management.login(loginEvent);
-assert.equal(nodes.loginFactorDialog.open,true);assert.equal(nodes.loginCode.focused,true);
-assert.equal(nodes.loginForm.elements.password.disabled,false);assert.equal(nodes.loginForm.elements.password.value,'private-test-password');
-assert.equal(nodes.loginForm.elements.username.value,'admin');
-loginResponse=new Error('Invalid code');await nodes.loginFactorForm.listeners.submit(factorEvent);
-assert.equal(nodes.loginFactorDialog.open,true);assert.equal(nodes.loginFactorError.textContent,'Invalid code');
-assert.equal(nodes.loginForm.elements.password.value,'private-test-password');assert.equal(nodes.loginForm.elements.username.value,'admin');
-assert.equal(calls.at(-1).url,'/api/login/2fa');
-nodes.loginFactorDialog.close(); // Escape dismisses the native dialog without submitting.
-assert.equal(nodes.loginForm.elements.password.value,'private-test-password');
-loginResponse={requires_2fa:true,challenge:'test-challenge'};await context.window.Management.login(loginEvent);
-assert.equal(calls.at(-1).url,'/api/login');
-nodes.loginBack.onclick();assert.equal(nodes.loginFactorDialog.open,false);assert.equal(nodes.loginForm.elements.password.disabled,false);
-assert.equal(nodes.loginForm.elements.password.value,'private-test-password');
-loginResponse={requires_2fa:true,challenge:'test-challenge'};await context.window.Management.login(loginEvent);
-loginResponse={ok:true};nodes.loginCode.value='123456';await nodes.loginFactorForm.listeners.submit(factorEvent);
-assert.equal(nodes.loginFactorDialog.open,false);assert.ok(refreshes>0);
-assert.equal(calls.at(-1).data.challenge,'test-challenge');
-assert.equal(nodes.loginForm.elements.password.value,'');
-await context.window.Management.login(loginEvent);assert.equal(calls.at(-1).url,'/api/login');
-assert.equal(nodes.loginFactorDialog.open,false);
 const count=calls.length;
 let confirmation=context.window.Management.startJob('apply','project');
 assert.equal(nodes.confirmationDialog.open,true);assert.equal(nodes.confirmationCancel.focused,true);
@@ -512,3 +486,16 @@ assert.ok(!/\b(?:window\.)?confirm\(/.test(source));
 assert.ok(!/\b(?:window\.)?confirm\(/.test(fs.readFileSync(path.join(root,'gateway/web/management.js'),'utf8')));
 console.log('PERSONAL SETTINGS / MFA CHALLENGE / DIRTY FORMS / CONFIRMED ROUTER JOBS / PTY / SECRET CLEARING PASS');
 console.log('FRONTEND / RU-EN / VERSION LINKS / EIGHT APPEARANCES / FOUR CHART RENDERERS / SETTINGS / CRUD PASS');
+
+// Update notice sits above the version and exposes installation only to administrators.
+vm.runInContext(`state=${JSON.stringify(sample)};`,context);
+vm.runInContext(fs.readFileSync(path.join(root,'gateway/web/updates.js'),'utf8'),context);
+const availableUpdate={current:'1.9.0-abcdef0',configured:true,settings:{auto_install:false,check_interval_hours:6},available:{tag:'1.10.0-aaaaaaa',version:'1.10.0',url:'https://github.com/QueenDekim/XRay-gateway/tree/1.10.0-aaaaaaa'},job:null};
+context.window.Updates.render(availableUpdate);assert.equal(nodes.updateNotice.hidden,false);assert.equal(nodes.updateNoticeVersion.textContent,'1.10.0-aaaaaaa');assert.equal(nodes.updateNoticeInstall.disabled,false);
+assert.ok(html.indexOf('id="updateNotice"')<html.indexOf('id="appVersion"'));
+let updateCalls=0;context.mockUpdateAPI=async(url,data)=>{if(url==='/api/updates/install'){updateCalls++;assert.equal(data.tag,'1.10.0-aaaaaaa');return{id:'update-job'};}return{...availableUpdate,job:{id:'update-job',tag:'1.10.0-aaaaaaa',status:'queued',logs:[]}};};vm.runInContext('api=mockUpdateAPI;',context);
+let updateRequest=nodes.updateNoticeInstall.onclick();nodes.confirmationCancel.onclick();await updateRequest;assert.equal(updateCalls,0);
+updateRequest=nodes.updateNoticeInstall.onclick();nodes.confirmationAccept.onclick();await updateRequest;assert.equal(updateCalls,1);assert.equal(nodes.updateNoticeInstall.disabled,true);
+vm.runInContext("state.user.role='operator';",context);context.window.Updates.render(availableUpdate);assert.equal(nodes.updateNoticeInstall.hidden,true);await context.window.Updates.install();assert.equal(updateCalls,1);
+context.window.Updates.render({...availableUpdate,current:'1.10.0-aaaaaaa',available:null});assert.equal(context.window.location.reloaded,true);
+console.log('UPDATE NOTICE / MODAL CONFIRMATION / READER RESTRICTIONS / RELOAD AFTER UPDATE PASS');

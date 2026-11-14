@@ -12,13 +12,20 @@ Docker Desktop, rootless Docker and cloud networks that block this traffic
 cannot run this deployment unchanged. Use a Linux VM with a suitable network
 interface in those environments. See Docker's [macvlan requirements](https://docs.docker.com/engine/network/drivers/macvlan/).
 
-## Configure the deployment
+## Build from source
 
 1. Copy `.env.example` to `.env`.
 2. Set `LAN_PARENT` to the Linux interface connected to the router.
 3. Set `LAN_SUBNET`, `LAN_GATEWAY`, `DOCKER_HOST_IP` and `GATEWAY_IP`.
 4. Exclude `GATEWAY_IP` from the DHCP pool and verify that no device uses it.
 5. Set the RouterOS LAN interface and the default client subnet.
+
+Set local image names in `.env`:
+
+```dotenv
+GATEWAY_IMAGE=xray-gateway:local
+UPDATER_IMAGE=xray-gateway-updater:local
+```
 
 Run:
 
@@ -29,6 +36,10 @@ docker compose config --quiet
 docker compose up -d --build
 docker compose ps
 ```
+
+Compose builds the gateway and updater and pulls the pinned Xray core. The
+updater mounts the Docker socket; review its [permissions](updates.md#docker-access)
+before starting it.
 
 The setup command writes `secrets/admin_password` with private permissions. The
 gateway reads this file on first startup and stores a salted password hash in
@@ -84,17 +95,25 @@ does not rewrite stored RouterOS settings.
 After configuring the network and initial password, set this value in `.env`:
 
 ```dotenv
-GATEWAY_IMAGE=ghcr.io/queendekim/xray-gateway:1.8.2
+GATEWAY_IMAGE=ghcr.io/queendekim/xray-gateway:1.9.0
+UPDATER_IMAGE=ghcr.io/queendekim/xray-gateway-updater:1.9.0
+XRAY_IMAGE=ghcr.io/xtls/xray-core:26.10.21
 ```
 
-Pull the gateway and matching core, then start without a local build:
+Pull the gateway, updater and matching core, then start without a local build:
 
 ```sh
-docker compose pull gateway xray
+docker compose pull gateway xray updater
 docker compose up -d --no-build
 ```
 
 Keep XRAY_IMAGE pinned to the version used by the release. The published gateway
 contains the validation executable; the separate Xray service handles traffic.
-A full release tag or image digest also works as GATEWAY_IMAGE. See
+Pin `GATEWAY_IMAGE` and `UPDATER_IMAGE` to the same release. You can use full
+release tags or image digests. Run `up` with `--no-build` for an image deployment,
+including when you add the reverse-proxy override. See
 [Releases](releases.md#container-publication) for tags and package visibility.
+
+Follow [Operations](operations.md#manual-update) for manual upgrades and
+[Updates](updates.md) for installation from the panel. The update worker
+preserves your Compose file list, reserved LAN address and network aliases.

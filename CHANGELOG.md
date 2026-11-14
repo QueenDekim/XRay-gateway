@@ -1,6 +1,17 @@
 # Changelog
 
-## 1.8.2
+## 1.9.0
+
+- Serve login, overview, profiles, lists, RouterOS and settings as separate pages; retain the current page and settings tab on reload.
+- Restore encrypted sessions after panel restarts without flashing the login screen.
+- Check published releases and show an update notification above the version link.
+- Install updates through a separate Compose worker with a private backup, health checks and rollback; add optional automatic updates.
+- Publish the updater image alongside the gateway for Linux amd64 and arm64.
+- Add API Wiki navigation with separate reference pages in the panel and documentation.
+- Correct the README logo for GitHub light mode and refresh theme screenshots.
+- Document source builds, GHCR deployment, updates and recovery.
+
+## [1.8.2](https://github.com/QueenDekim/XRay-gateway/tree/1.8.2-b1979d9)
 
 - Publish tested Linux amd64/arm64 gateway images to GitHub Container Registry.
 - Include version aliases, source labels and license notices in published images.

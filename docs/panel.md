@@ -1,5 +1,16 @@
 # Web panel and API
 
+## Pages and navigation
+
+Open `/overview`, `/profiles`, `/iplists`, `/routeros`, `/settings`, `/account`
+or `/wiki`. Each URL returns its own page. Reload keeps the selected page;
+settings tabs use fragments such as `/settings#updates` and `/account#security`.
+The sign-in page returns you to the requested URL after authentication.
+
+The panel encrypts active sessions on disk so restarts preserve signed-in
+sessions until their 12-hour expiry. Logging out revokes the saved session.
+Password and account security changes revoke earlier sessions.
+
 ## Profiles and measured traffic
 
 Add VLESS profiles with TLS, REALITY or no transport encryption. Lower priority numbers win among
@@ -52,7 +63,7 @@ The panel shows the SSH import log. Deleting a list removes its owned router
 resources before deleting the panel record. A failed cleanup leaves the record
 available for retry. Configure the SSH connection first; see [RouterOS](routeros.md).
 
-Settings has Routing, Checks, RouterOS and Users tabs. Administrators
+Settings has Routing, Checks, RouterOS, Users and Updates tabs. Administrators
 manage common settings, router access, profiles, lists and accounts. Users with
 the `operator` role have read-only access to shared data. They can view and copy
 full lists; changing lists or profiles, resetting counters and writing to
@@ -100,32 +111,31 @@ and a fresh code. Replacement codes invalidate the previous set. Security change
 revoke other sessions. If you lose both the authenticator and recovery codes,
 use the local [administrator recovery command](operations.md#recover-administrator-access).
 
+## Updates
+
+The lower-left version area shows a newer release with an Update button for
+administrators. Confirm installation in the panel dialog and follow the log
+under Settings → Updates. Enable automatic installation there if you want
+unattended updates within the current major version. See [Updates](updates.md)
+for backups, rollback and Docker permissions.
+
 ## HTTP API
 
-The API uses JSON and a same-origin session cookie. Log in with
-`POST /api/login` containing `username` and `password`. Read `GET /api/state` for
-the CSRF token, then send that value in `X-CSRF-Token` on authenticated writes.
+Choose API Wiki in the sidebar to open `/wiki`. Each topic has a separate page:
+authentication, profiles, lists, RouterOS, terminal, accounts, settings and
+updates. The [Markdown API reference](api/README.md) provides the same request
+and response examples outside the panel.
 
-Read `GET /api/version` without signing in for the version, source revision and
-tag URL. Send `Accept-Language: en` for English API errors; the default is Russian.
+The API uses JSON and a same-origin session cookie. Sign in through
+`POST /api/login`, complete `/api/login/2fa` when required, then read
+`GET /api/state` for the CSRF token. Send it as `X-CSRF-Token` on authenticated
+writes. Set `Accept-Language: en` for English errors; the default is Russian.
 
-Send `POST /api/profiles/reset-checks` with an empty JSON object and the session's
-CSRF token to reset profile probe counts.
+Read `GET /api/version` without signing in for the version, revision and tag
+URL. Authenticated responses omit VLESS credentials and password hashes. Keep
+session cookies, CSRF tokens and exported configuration private.
 
-Administrators can send `POST /api/profiles/preview` with `uri` to read a
-subscription. The response contains a session-bound `token`, a `profiles` array
-with IDs, names, endpoints, transports and security modes, a `skipped` count,
-and `group` metadata. Existing group members also include their saved name
-and priority.
-Submit the same `uri`, `subscription_token` and an array of selected profile IDs
-in `subscription_profiles` to `/api/profiles/add` or `/edit`, along with the normal
-profile fields and revision. Send `subscription_options` as an object keyed
-by selected profile ID, with `name` and integer `priority` (1 to 1000) for each
-entry. Use `subscription_name` for the group heading. Add accepts several
-selections; edit accepts one. Each reimport updates matching members by group
-and node ID; it leaves unselected members untouched.
-The token expires after five minutes, a successful save, or another preview in
-the same session. A multi-profile URL without a selection returns HTTP 400.
+Quick endpoint index:
 
 | Endpoint | Operation |
 | --- | --- |
@@ -137,25 +147,3 @@ the same session. A multi-profile URL without a selection returns HTTP 400.
 | `POST /api/settings` | Save administrator settings using their revision |
 | `POST /api/password` | Change the current user's password |
 | `POST /api/users/add`, `/edit`, `/delete` | Manage accounts as an administrator |
-
-API responses omit VLESS credentials and password hashes. Keep session cookies,
-CSRF tokens and exported configuration files private. Account changes revoke
-earlier sessions through a user revision check.
-
-A password login for a protected account returns `requires_2fa` and a `challenge`
-without issuing a session. Complete it with `POST /api/login/2fa` using `challenge`
-and `code`. Personal writes use `/api/account/profile`, `/api/account/avatar`, and
-`/api/account/2fa/setup`, `/enable`, `/disable`, `/recovery`. The avatar endpoint
-accepts base64 image bytes in `image`; an empty string removes the avatar.
-
-`POST /api/routeros/apply` and `POST /api/ip-lists/delete` accept a list `id` and
-`version`, and return HTTP 202 with a job `id`. Poll
-`GET /api/routeros/jobs/<id>?cursor=<cursor>` for status and incremental log lines.
-Statuses are `queued`, `running`, `done` and `error`; retain the returned cursor.
-The panel keeps the last 30 jobs and up to 600 lines per job in process memory.
-
-Administrators configure SSH through `GET/POST /api/routeros/config` and inspect
-a host fingerprint through `POST /api/routeros/host-key`. Terminal endpoints
-`/api/routeros/terminal/open`, `/input`, `/resize`, `/close` use POST;
-`GET /api/routeros/terminal/<id>?cursor=<cursor>` returns base64 PTY output.
-Terminal IDs belong to one user and one panel session.

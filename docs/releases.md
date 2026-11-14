@@ -42,19 +42,22 @@ to the original commits; the correction does not rewrite Git history.
 ## Container publication
 
 A release tag runs the test and container checks before publishing
-`ghcr.io/queendekim/xray-gateway`. The image supports Linux amd64 and arm64.
+`ghcr.io/queendekim/xray-gateway` and
+`ghcr.io/queendekim/xray-gateway-updater`. Both support Linux amd64 and arm64.
 Pull requests and branch builds run checks without publishing.
 
 Each release publishes the full tag with its commit suffix, the version number,
-minor and major aliases, and `latest`. For example, a 1.8.2 release publishes
-`1.8.2-<commit>`, `1.8.2`, `1.8`, `1` and `latest`. Pin the full tag or digest for
+minor and major aliases, and `latest`. For example, a 1.9.0 release publishes
+`1.9.0-<commit>`, `1.9.0`, `1.9`, `1` and `latest`. Pin the full tag or digest for
 repeatable deployments. Publishing again moves the floating aliases to that
 release.
 
 The workflow uses its repository GITHUB_TOKEN with `packages: write`; it does
 not require a personal token in repository secrets. It records the source
 revision, version and license in OCI labels, then pulls the published digest
-and checks its embedded version metadata.
+and checks its embedded version metadata. The workflow publishes the updater
+first. The panel offers a release after it can read both image digests
+without credentials.
 
 GitHub creates new container packages as private. For anonymous pulls, open
 the package page, select Package settings, and change visibility to Public.

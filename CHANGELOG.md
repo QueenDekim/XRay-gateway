@@ -1,6 +1,11 @@
 # Changelog
 
-## 1.10.0
+## 1.11.0
+
+- Add a No expiry option when creating API tokens; keep revocation and 2FA confirmation.
+- Represent tokens without an expiration date as `expires_at: null` in the API.
+
+## [1.10.0](https://github.com/QueenDekim/XRay-gateway/tree/1.10.0-d87cdee)
 
 - Authenticate API integrations with named, expiring Bearer tokens.
 - Create and revoke tokens under personal settings; confirm each issue with 2FA when enabled.

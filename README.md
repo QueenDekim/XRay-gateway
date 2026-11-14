@@ -20,7 +20,7 @@ do not provide the required macvlan data path.
 - Traffic counters, live charts and per-profile statistics.
 - Mixed IPv4/IPv6 and domain lists, with direct RouterOS installation over SSH.
 - Administrator and read-only accounts, avatars and two-factor authentication.
-- Named API tokens with expiry, revocation and 2FA confirmation at creation.
+- Named API tokens with optional expiry, revocation and 2FA confirmation at creation.
 - Separate page URLs, a sectioned API Wiki and updates with backup and rollback.
 - Four interface styles, each with light and dark modes.
 

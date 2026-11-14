@@ -19,7 +19,7 @@ class ApiTokens:
     @staticmethod
     def public(item, user):
         return {key: item[key] for key in ('id', 'name', 'prefix', 'created_at', 'expires_at')} | {
-            'active': item['expires_at'] > time.time() and item['revision'] == user['revision']}
+            'active': (item['expires_at'] is None or item['expires_at'] > time.time()) and item['revision'] == user['revision']}
 
     def list(self, actor):
         with self.accounts.lock:
@@ -29,9 +29,12 @@ class ApiTokens:
     def create(self, actor, data):
         name = data.get('name', '')
         days = data.get('days', 90)
+        no_expiry = data.get('no_expiry', False)
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or not all(c.isprintable() for c in name):
             raise ValueError('Название токена: от 1 до 80 символов.')
-        if isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= 365:
+        if not isinstance(no_expiry, bool):
+            raise ValueError('Параметр «Без окончания» должен быть логическим значением.')
+        if not no_expiry and (isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= 365):
             raise ValueError('Срок действия токена: от 1 до 365 дней.')
         with self.accounts.lock:
             stored = self.accounts.load()
@@ -45,7 +48,7 @@ class ApiTokens:
             value = 'xg_' + identifier + '.' + secrets.token_urlsafe(32)
             now = time.time()
             item = {'id': identifier, 'name': name.strip(), 'prefix': 'xg_' + identifier,
-                    'created_at': now, 'expires_at': now + days * 86400,
+                    'created_at': now, 'expires_at': None if no_expiry else now + days * 86400,
                     'revision': user['revision'], 'hash': hashlib.sha256(value.encode()).hexdigest()}
             user['api_tokens'] = active + [item]
             atomic_json(self.accounts.path, stored)

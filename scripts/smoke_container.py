@@ -73,8 +73,8 @@ csrf=state['csrf']
 def post(path,data):
  request=urllib.request.Request('http://127.0.0.1:8080'+path,data=json.dumps(data).encode(),headers={'Content-Type':'application/json','X-CSRF-Token':csrf})
  return json.load(client.open(request))
-issued=post('/api/account/tokens/create',{'name':'Container smoke','days':7})
-assert 'token' in issued and 'hash' not in issued['item']
+issued=post('/api/account/tokens/create',{'name':'Container smoke','no_expiry':True})
+assert 'token' in issued and 'hash' not in issued['item'] and issued['item']['expires_at'] is None
 bearer=urllib.request.Request('http://127.0.0.1:8080/api/state',headers={'Authorization':'Bearer '+issued['token']})
 assert json.load(urllib.request.urlopen(bearer))['user']['role']=='admin'
 post('/api/account/tokens/revoke',{'id':issued['item']['id']})
@@ -88,7 +88,7 @@ setup=post('/api/account/2fa/setup',{'password':'smoke-test-password'})
 assert client.open('http://127.0.0.1:8080/api/account/2fa/qr').read().startswith(b'\x89PNG')
 enabled=post('/api/account/2fa/enable',{'code':totp(setup['secret'],int(time.time()//30))})
 assert enabled['user']['two_factor_enabled'] and len(enabled['recovery_codes'])==10
-protected=post('/api/account/tokens/create',{'name':'Protected','code':enabled['recovery_codes'][-1]})
+protected=post('/api/account/tokens/create',{'name':'Protected','code':enabled['recovery_codes'][-1],'no_expiry':True})
 post('/api/account/tokens/revoke',{'id':protected['item']['id']})
 post('/api/logout',{})
 challenge=post('/api/login',{'username':'smoke-owner','password':'smoke-test-password'})

@@ -2,8 +2,15 @@
 (() => {
  if(!$('tokenCreateForm'))return;
  let tokens=[],pending=null,busy=false;
+ function expiryMode(){const never=$('tokenNoExpiry').checked;$('tokenDays').disabled=never;$('tokenDays').required=!never;}
+ function expiry(item){
+  const never=item.expires_at===null;
+  const label=item.active?(never?'Без окончания':'Действует до'):'Недействителен';
+  const detail=never?(item.active?'':`<span>${esc(t('Без окончания'))}</span>`):`<time datetime="${new Date(item.expires_at*1000).toISOString()}">${esc(new Date(item.expires_at*1000).toLocaleDateString(locale()))}</time>`;
+  return `<span>${esc(t(label))}</span>${detail}`;
+ }
  function render(){
-  $('tokenList').innerHTML=tokens.map(item=>`<div class="token-row"><div class="token-identity"><b>${esc(item.name)}</b><code>${esc(item.prefix)}</code></div><div class="token-expiry"><span>${esc(t(item.active?'Действует до':'Недействителен'))}</span><time datetime="${new Date(item.expires_at*1000).toISOString()}">${esc(new Date(item.expires_at*1000).toLocaleDateString(locale()))}</time></div><button class="text-button danger" type="button" data-revoke-token="${esc(item.id)}">${esc(t('Отозвать'))}</button></div>`).join('')||`<p class="muted">${t('API-токенов пока нет')}</p>`;
+  $('tokenList').innerHTML=tokens.map(item=>`<div class="token-row"><div class="token-identity"><b>${esc(item.name)}</b><code>${esc(item.prefix)}</code></div><div class="token-expiry">${expiry(item)}</div><button class="text-button danger" type="button" data-revoke-token="${esc(item.id)}">${esc(t('Отозвать'))}</button></div>`).join('')||`<p class="muted">${t('API-токенов пока нет')}</p>`;
  }
  async function load(){try{tokens=(await api('/api/account/tokens')).tokens;render();}catch(error){message('tokenStatus',error.message);}}
  async function issue(data){
@@ -13,14 +20,14 @@
    const result=await api('/api/account/tokens/create',data);
    state.user=result.user;window.Management?.render();pending=null;
    if($('tokenFactorDialog').open)$('tokenFactorDialog').close();
-   $('tokenCreateForm').reset();$('tokenValue').value=result.token;message('tokenCopyStatus','');
+   $('tokenCreateForm').reset();expiryMode();$('tokenValue').value=result.token;message('tokenCopyStatus','');
    $('tokenValueDialog').showModal();$('copyTokenValue').focus();await load();
   }catch(error){message($('tokenFactorDialog').open?'tokenFactorError':'tokenStatus',error.message);}
   finally{busy=false;$('createToken').disabled=false;$('confirmTokenFactor').disabled=false;}
  }
  $('tokenCreateForm').addEventListener('submit',event=>{
   event.preventDefault();if(busy||pending)return;
-  const data={name:$('tokenName').value.trim(),days:Number($('tokenDays').value)};
+  const data={name:$('tokenName').value.trim(),...($('tokenNoExpiry').checked?{no_expiry:true}:{days:Number($('tokenDays').value)})};
   if(state.user.two_factor_enabled){pending=data;message('tokenFactorError','');$('tokenFactorCode').value='';$('tokenFactorDialog').showModal();$('tokenFactorCode').focus();}
   else issue(data);
  });
@@ -38,5 +45,6 @@
  });
  window.addEventListener('pagehide',()=>{$('tokenValue').value='';$('tokenFactorCode').value='';pending=null;});
  document.addEventListener('languagechange',render);
+ $('tokenNoExpiry').addEventListener('change',expiryMode);expiryMode();
  window.ApiTokens={load,render};load();
 })();

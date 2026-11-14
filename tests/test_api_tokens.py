@@ -91,7 +91,7 @@ class ApiTokenTests(unittest.TestCase):
 
     def test_password_security_revision_and_user_deletion_invalidate_tokens(self):
         browser = self.initialize()
-        token = self.issue(browser)['token']
+        token = self.issue(browser, no_expiry=True)['token']
         self.assertEqual(self.request('/api/password', {'current_password': 'test-password', 'password': 'replacement-password'}, browser)[0], 200)
         self.assertEqual(self.request('/api/state', headers={'Authorization': 'Bearer ' + token})[0], 401)
         status, result, _ = self.request('/api/users/add', {'username': 'reader', 'role': 'operator', 'password': 'reader-password'}, browser)
@@ -111,7 +111,8 @@ class ApiTokenTests(unittest.TestCase):
         self.handler.security_attempts = {}
         for data in [{}, {'code': 'invalid'}, {'code': code}]:
             self.assertEqual(self.request('/api/account/tokens/create', {'name': 'Protected'} | data, browser)[0], 400)
-        created = self.issue(browser, code=enabled['recovery_codes'][0])
+        created = self.issue(browser, code=enabled['recovery_codes'][0], no_expiry=True)
+        self.assertIsNone(created['item']['expires_at'])
         self.assertEqual(created['user']['recovery_remaining'], 9)
         self.assertEqual(self.request('/api/account/tokens/create', {'name': 'Replay', 'code': enabled['recovery_codes'][0]}, browser)[0], 400)
         self.assertEqual(len(self.tokens.list(created['user'])), 1)
@@ -131,7 +132,7 @@ class ApiTokenTests(unittest.TestCase):
 
     def test_bearer_subscription_preview_remains_bound_to_credential(self):
         browser = self.initialize()
-        a = {'Authorization': 'Bearer ' + self.issue(browser, name='A')['token']}
+        a = {'Authorization': 'Bearer ' + self.issue(browser, name='A', no_expiry=True)['token']}
         b = {'Authorization': 'Bearer ' + self.issue(browser, name='B')['token']}
         source = 'https://example.org/sub/test'
         with patch('controller.fetch_subscription', return_value=URI.encode()):
@@ -145,7 +146,23 @@ class ApiTokenTests(unittest.TestCase):
     def test_input_validation_and_active_token_limit(self):
         browser = self.initialize()
         user = self.request('/api/state', headers=browser)[1]['user']
-        for data in [{'name': ''}, {'name': 'x', 'days': True}, {'name': 'x', 'days': 0}, {'name': 'x', 'days': 366}]:
+        for data in [{'name': ''}, {'name': 'x', 'days': True}, {'name': 'x', 'days': 0}, {'name': 'x', 'days': 366},
+                     {'name': 'x', 'no_expiry': 'true'}, {'name': 'x', 'no_expiry': 1}, {'name': 'x', 'no_expiry': None}]:
             with self.assertRaises(ValueError):self.tokens.create(user, data)
-        for index in range(20):self.tokens.create(user, {'name': str(index)})
+        for index in range(20):self.tokens.create(user, {'name': str(index), 'no_expiry': True})
         with self.assertRaises(ValueError):self.tokens.create(user, {'name': 'Too many'})
+
+    def test_no_expiry_survives_time_and_reload_but_can_be_revoked(self):
+        browser = self.initialize()
+        created = self.issue(browser, no_expiry=True)
+        self.assertIsNone(created['item']['expires_at'])
+        bearer = {'Authorization': 'Bearer ' + created['token']}
+        with patch('api_tokens.time.time', return_value=time.time() + 100 * 365 * 86400):
+            self.assertEqual(self.request('/api/state', headers=bearer)[0], 200)
+            loaded = ApiTokens(Accounts(self.root / 'auth.json', self.c.lock))
+            self.assertIsNotNone(loaded.authenticate(created['token']))
+            items = loaded.list(created['user'])
+            self.assertTrue(items[0]['active'])
+            self.assertIsNone(items[0]['expires_at'])
+        self.assertEqual(self.request('/api/account/tokens/revoke', {'id': created['item']['id']}, browser)[0], 200)
+        self.assertEqual(self.request('/api/state', headers=bearer)[0], 401)

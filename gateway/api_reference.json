@@ -130,8 +130,8 @@
       },
       "paragraphs": [
         {
-          "ru": "Откройте своё имя → API. Укажите название и срок действия от 1 до 365 дней. При включённой 2FA подтвердите каждый выпуск кодом аутентификатора или резервным кодом. Панель показывает полный токен один раз; на диске хранится SHA-256 хеш.",
-          "en": "Open your name → API. Enter a name and a lifetime from 1 to 365 days. With 2FA enabled, confirm each token with an authenticator or recovery code. Copy the full token when it appears; the panel stores its SHA-256 hash and does not display it again."
+          "ru": "Откройте своё имя → API. Укажите название и срок действия от 1 до 365 дней или включите «Без окончания». При включённой 2FA подтвердите каждый выпуск кодом аутентификатора или резервным кодом. Панель показывает полный токен один раз; на диске хранится SHA-256 хеш.",
+          "en": "Open your name → API. Enter a name and a lifetime from 1 to 365 days, or select No expiry. With 2FA enabled, confirm each token with an authenticator or recovery code. Copy the full token when it appears; the panel stores its SHA-256 hash and does not display it again."
         },
         {
           "ru": "Используйте Authorization: Bearer <token>. Токен имеет права владельца: обычный пользователь не может менять профили, IP-списки и RouterOS. Отзыв, истечение срока, удаление пользователя, смена пароля, прав или состояния 2FA прекращают доступ по токену.",
@@ -148,8 +148,8 @@
           "path": "/api/account/tokens",
           "role": "user (panel session)",
           "description": {
-            "ru": "Метаданные только собственных токенов: id, name, prefix, created_at, expires_at и active. Секрет и хеш не возвращаются.",
-            "en": "Return metadata for your own tokens: id, name, prefix, created_at, expires_at and active. The response omits secrets and hashes."
+            "ru": "Метаданные только собственных токенов: id, name, prefix, created_at, expires_at и active. Секрет и хеш не возвращаются. expires_at равен null для токена без окончания.",
+            "en": "Return metadata for your own tokens: id, name, prefix, created_at, expires_at and active. The response omits secrets and hashes. expires_at is null for a token with no expiry."
           }
         },
         {
@@ -157,13 +157,14 @@
           "path": "/api/account/tokens/create",
           "role": "user (panel session)",
           "description": {
-            "ru": "Создаёт токен и возвращает 201 с полным token, метаданными item и обновлённым user. name обязателен; days по умолчанию 90. При включённой 2FA обязателен code. Повторно использованный код отклоняется. Ограничение: пять операций безопасности за минуту на пользователя.",
-            "en": "Create a token and return 201 with the full token, item metadata and refreshed user. Require name; days defaults to 90. Require code when 2FA is enabled and reject reused codes. Limit security operations to five per user per minute."
+            "ru": "Создаёт токен и возвращает 201 с полным token, метаданными item и обновлённым user. name обязателен; days по умолчанию 90. no_expiry: true создаёт токен без окончания и отменяет days; expires_at будет null. no_expiry принимает только логическое значение и по умолчанию false. При включённой 2FA обязателен code. Повторно использованный код отклоняется. Ограничение: пять операций безопасности за минуту на пользователя.",
+            "en": "Create a token and return 201 with the full token, item metadata and refreshed user. Require name; days defaults to 90. Set no_expiry to true to omit the expiration date; this overrides days and returns expires_at: null. no_expiry must be a boolean and defaults to false. Require code when 2FA is enabled and reject reused codes. Limit security operations to five per user per minute."
           },
           "request": {
             "name": "Monitoring",
             "days": 90,
-            "code": "123456"
+            "code": "123456",
+            "no_expiry": false
           }
         },
         {

@@ -122,7 +122,8 @@ for backups, rollback and Docker permissions.
 ## API tokens
 
 Open your name → API to create a named token. Choose a lifetime from 1 to 365
-days; the default is 90. With 2FA enabled, confirm each new token in the code
+days; the default is 90. Select No expiry to create a token without an expiration
+date. With 2FA enabled, confirm each new token in the code
 dialog. You can use an authenticator code or a single-use recovery code.
 
 Copy the token from the result dialog. Closing it clears the full value; the

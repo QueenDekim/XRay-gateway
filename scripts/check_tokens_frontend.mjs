@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const html=fs.readFileSync(path.join(root,'gateway/web/pages/account.html'),'utf8');
 const nodes={};
-for(const [,id] of html.matchAll(/\bid="([^"]+)"/g))nodes[id]={value:'',disabled:false,hidden:false,open:false,dataset:{},listeners:{},addEventListener(k,f){this.listeners[k]=f;},focus(){this.focused=true;},select(){this.selected=true;},showModal(){this.open=true;},close(){this.open=false;this.listeners.close?.();},reset(){nodes.tokenName.value='';nodes.tokenDays.value='90';}};
+for(const [,id] of html.matchAll(/\bid="([^"]+)"/g))nodes[id]={value:'',disabled:false,hidden:false,open:false,dataset:{},listeners:{},addEventListener(k,f){this.listeners[k]=f;},focus(){this.focused=true;},select(){this.selected=true;},showModal(){this.open=true;},close(){this.open=false;this.listeners.close?.();},reset(){nodes.tokenName.value='';nodes.tokenDays.value='90';nodes.tokenNoExpiry.checked=false;}};
 const calls=[],events={},messages={};let copied='',accept=true,fail=false,role='operator';
 let records=[];
 const user={id:'user',role,two_factor_enabled:false};
@@ -15,7 +15,7 @@ const context=vm.createContext({$:id=>nodes[id],state:{user},window:{Management:
  t:(value,...args)=>args.reduce((text,arg,i)=>text.replace('{'+i+'}',arg),value),esc:value=>String(value).replaceAll('<','&lt;').replaceAll('>','&gt;'),locale:()=> 'en-US',message(id,text){messages[id]=text;},
  confirmAction:async(text)=>{calls.push({confirm:typeof text==='function'?text():text});return accept;},navigator:{clipboard:{writeText:async value=>{copied=value;}}},Date,
  api:async(path,data)=>{calls.push({path,data});if(path==='/api/account/tokens')return{tokens:records};
-  if(path.endsWith('/create')){if(fail)throw new Error('Invalid code');records=[{id:'test-id',name:data.name,prefix:'xg_test',expires_at:2000000000,active:true}];return{token:'test-secret',user};}
+  if(path.endsWith('/create')){if(fail)throw new Error('Invalid code');records=[{id:'test-id',name:data.name,prefix:'xg_test',expires_at:data.no_expiry?null:2000000000,active:true}];return{token:'test-secret',user};}
   if(path.endsWith('/revoke')){records=[];return{ok:true};}throw new Error(path);}});
 vm.runInContext(fs.readFileSync(path.join(root,'gateway/web/tokens.js'),'utf8'),context);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));await tick();
@@ -25,6 +25,15 @@ assert.deepEqual(JSON.parse(JSON.stringify(calls.find(v=>v.path?.endsWith('/crea
 assert.equal(nodes.tokenValue.value,'test-secret');assert.equal(nodes.tokenValueDialog.open,true);
 await nodes.copyTokenValue.onclick();assert.equal(copied,'test-secret');
 nodes.closeTokenValue.onclick();assert.equal(nodes.tokenValue.value,'');
+nodes.tokenName.value='Permanent';nodes.tokenNoExpiry.checked=true;nodes.tokenNoExpiry.listeners.change();
+assert.equal(nodes.tokenDays.disabled,true);assert.equal(nodes.tokenDays.required,false);
+submit();await tick();
+assert.deepEqual(JSON.parse(JSON.stringify(calls.filter(v=>v.path?.endsWith('/create')).at(-1).data)),{name:'Permanent',no_expiry:true});
+assert.ok(nodes.tokenList.innerHTML.includes('Без окончания'));assert.ok(!nodes.tokenList.innerHTML.includes('<time'));
+assert.equal(nodes.tokenNoExpiry.checked,false);assert.equal(nodes.tokenDays.disabled,false);assert.equal(nodes.tokenDays.required,true);
+nodes.closeTokenValue.onclick();
+nodes.tokenNoExpiry.checked=true;nodes.tokenNoExpiry.listeners.change();nodes.tokenNoExpiry.checked=false;nodes.tokenNoExpiry.listeners.change();
+assert.equal(nodes.tokenDays.disabled,false);assert.equal(nodes.tokenDays.value,'90');
 user.two_factor_enabled=true;nodes.tokenName.value='<Monitor>';nodes.tokenDays.value='90';
 const before=calls.filter(v=>v.path?.endsWith('/create')).length;submit();await tick();
 assert.equal(nodes.tokenFactorDialog.open,true);assert.equal(nodes.tokenFactorCode.focused,true);
@@ -45,4 +54,4 @@ assert.equal(calls.filter(v=>v.path?.endsWith('/revoke')).length,0);
 accept=true;await nodes.tokenList.listeners.click({target:{closest:()=>button}});
 assert.equal(calls.filter(v=>v.path?.endsWith('/revoke')).length,1);
 assert.ok(nodes.tokenList.innerHTML.includes('API-токенов пока нет'));
-console.log('API TOKEN UI / OPTIONAL MFA MODAL / RETAINED INPUT / ONE-TIME SECRET / COPY / CONFIRMED REVOCATION PASS');
+console.log('API TOKEN UI / OPTIONAL MFA MODAL / RETAINED INPUT / ONE-TIME SECRET / COPY / NO EXPIRY / CONFIRMED REVOCATION PASS');

@@ -62,7 +62,7 @@ for page in ['overview','profiles','iplists','routeros','settings','account']:
  html=client.open('http://127.0.0.1:8080/'+page).read()
  assert ('id="'+page+'Page"').encode() in html and b'id="loginForm"' not in html
  assert b'href="/profiles"' in html and b'/updates.js' in html
-for topic in ['authentication','profiles','ip-lists','routeros','terminal','accounts','settings','updates']:
+for topic in ['authentication','tokens','profiles','ip-lists','routeros','terminal','accounts','settings','updates']:
  assert b'class="wiki-article"' in client.open('http://127.0.0.1:8080/wiki/'+topic).read()
 assert json.load(client.open('http://127.0.0.1:8080/api/updates'))['current']==info['version']
 
@@ -73,6 +73,14 @@ csrf=state['csrf']
 def post(path,data):
  request=urllib.request.Request('http://127.0.0.1:8080'+path,data=json.dumps(data).encode(),headers={'Content-Type':'application/json','X-CSRF-Token':csrf})
  return json.load(client.open(request))
+issued=post('/api/account/tokens/create',{'name':'Container smoke','days':7})
+assert 'token' in issued and 'hash' not in issued['item']
+bearer=urllib.request.Request('http://127.0.0.1:8080/api/state',headers={'Authorization':'Bearer '+issued['token']})
+assert json.load(urllib.request.urlopen(bearer))['user']['role']=='admin'
+post('/api/account/tokens/revoke',{'id':issued['item']['id']})
+try:urllib.request.urlopen(bearer);raise AssertionError('Revoked token accepted')
+except __import__('urllib.error',fromlist=['HTTPError']).HTTPError as error:assert error.code==401
+print('Container Bearer authentication / one-time token / revocation PASS')
 from two_factor import totp
 import base64,io,time
 from PIL import Image
@@ -80,12 +88,14 @@ setup=post('/api/account/2fa/setup',{'password':'smoke-test-password'})
 assert client.open('http://127.0.0.1:8080/api/account/2fa/qr').read().startswith(b'\x89PNG')
 enabled=post('/api/account/2fa/enable',{'code':totp(setup['secret'],int(time.time()//30))})
 assert enabled['user']['two_factor_enabled'] and len(enabled['recovery_codes'])==10
+protected=post('/api/account/tokens/create',{'name':'Protected','code':enabled['recovery_codes'][-1]})
+post('/api/account/tokens/revoke',{'id':protected['item']['id']})
 post('/api/logout',{})
 challenge=post('/api/login',{'username':'smoke-owner','password':'smoke-test-password'})
 assert challenge['requires_2fa'] and not list(jar)
 post('/api/login/2fa',{'challenge':challenge['challenge'],'code':enabled['recovery_codes'][0]})
 state=json.load(client.open('http://127.0.0.1:8080/api/state'));csrf=state['csrf']
-assert state['user']['recovery_remaining']==9
+assert state['user']['recovery_remaining']==8
 post('/api/account/2fa/disable',{'password':'smoke-test-password','code':enabled['recovery_codes'][1]})
 post('/api/account/profile',{'display_name':'Container smoke','preferences':{'design':'console','colorScheme':'dark','language':'en'}})
 output=io.BytesIO();Image.new('RGB',(32,40),'#385b70').save(output,format='PNG')

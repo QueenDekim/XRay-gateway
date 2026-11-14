@@ -72,7 +72,7 @@ avatar, display name, appearance and 2FA settings. Passwords require
 8 to 1024 characters. The panel protects the last administrator and prevents
 self-deletion.
 
-Click your name to open personal settings: Profile, Appearance and Security.
+Click your name to open personal settings: Profile, Appearance, Security and API.
 Change your display name, upload a PNG, JPEG or WebP avatar up to 2 MB, or remove
 it. The panel crops avatars to 256 × 256 pixels and strips image metadata.
 
@@ -119,6 +119,21 @@ under Settings → Updates. Enable automatic installation there if you want
 unattended updates within the current major version. See [Updates](updates.md)
 for backups, rollback and Docker permissions.
 
+## API tokens
+
+Open your name → API to create a named token. Choose a lifetime from 1 to 365
+days; the default is 90. With 2FA enabled, confirm each new token in the code
+dialog. You can use an authenticator code or a single-use recovery code.
+
+Copy the token from the result dialog. Closing it clears the full value; the
+list shows its name, prefix and expiry. Revoke individual tokens from that list.
+You can keep up to 20 active tokens. Tokens inherit your role, so a regular
+user's token keeps read-only access to profiles, IP lists and RouterOS.
+
+Password, role and 2FA security changes invalidate previously issued tokens.
+Account deletion and expiry also end access. See [API tokens](api/tokens.md)
+for the request format and token-management endpoints.
+
 ## HTTP API
 
 Choose API Wiki in the sidebar to open `/wiki`. Each topic has a separate page:
@@ -126,10 +141,9 @@ authentication, profiles, lists, RouterOS, terminal, accounts, settings and
 updates. The [Markdown API reference](api/README.md) provides the same request
 and response examples outside the panel.
 
-The API uses JSON and a same-origin session cookie. Sign in through
-`POST /api/login`, complete `/api/login/2fa` when required, then read
-`GET /api/state` for the CSRF token. Send it as `X-CSRF-Token` on authenticated
-writes. Set `Accept-Language: en` for English errors; the default is Russian.
+Use JSON requests with `Authorization: Bearer <token>` for integrations.
+Bearer requests need no session cookie or CSRF header. The web panel retains
+its session cookie and sends `X-CSRF-Token` for writes. Set `Accept-Language: en` for English errors; the default is Russian.
 
 Read `GET /api/version` without signing in for the version, revision and tag
 URL. Authenticated responses omit VLESS credentials and password hashes. Keep

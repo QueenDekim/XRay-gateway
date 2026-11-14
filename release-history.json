@@ -121,6 +121,12 @@
       "revision": "b1979d92afabd213120e0c1766f705f912a15e01",
       "tag": "1.8.2-b1979d9",
       "summary": "Publish tested amd64 and arm64 gateway images to GHCR."
+    },
+    {
+      "version": "1.9.0",
+      "revision": "25aa28a882e563eddc2eb695ab6dae7dcc399bb1",
+      "tag": "1.9.0-25aa28a",
+      "summary": "Separate document routes, sectioned API Wiki and Compose updates with backup and rollback."
     }
   ]
 }

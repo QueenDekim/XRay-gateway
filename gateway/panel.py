@@ -1,4 +1,4 @@
-"""Authenticated same-origin management API. No external web dependencies."""
+"""Session and Bearer authentication for the management API and web panel."""
 import collections
 import hmac
 import http.cookies
@@ -22,6 +22,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
     controller = None
     snapshot = None
     sessions = {}
+    token_sessions = {}
     failures = collections.defaultdict(list)
     pending_logins = {}
     security_attempts = {}
@@ -65,6 +66,8 @@ class Panel(http.server.BaseHTTPRequestHandler):
             'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
             'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"}.items():
             self.send_header(key, value)
+        if status == 401 and urlsplit(self.path).path.startswith('/api/'):
+            self.send_header('WWW-Authenticate', 'Bearer realm="Xray Gateway"')
         if cookie:
             if self.headers.get('X-Forwarded-Proto','').split(',')[0].strip()=='https':cookie+='; Secure'
             self.send_header('Set-Cookie', cookie)
@@ -72,6 +75,27 @@ class Panel(http.server.BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def session(self):
+        authorization = self.headers.get('Authorization')
+        if authorization is not None and urlsplit(self.path).path.startswith('/api/'):
+            from api_tokens import ApiTokens
+            match = re.fullmatch(r'(?i:Bearer) (\S{1,128})', authorization)
+            with self.controller.lock:
+                authenticated = ApiTokens(self.accounts()).authenticate(match[1]) if match else None
+                if not authenticated:
+                    return None, None
+                key = 'api:' + authenticated['id']
+                if key not in self.token_sessions:
+                    if len(self.token_sessions) >= 256:
+                        self.token_sessions.pop(next(iter(self.token_sessions)))
+                    self.token_sessions[key] = {'csrf': '', 'auth_method': 'token'}
+                session = self.token_sessions[key]
+                user = authenticated['user']
+                session.update(expires=authenticated['expires'], user_id=user['id'], user_revision=user['revision'],
+                               username=user['username'], user=user)
+                return key, session
+        return self.browser_session()
+
+    def browser_session(self):
         try:
             cookie = http.cookies.SimpleCookie(self.headers.get('Cookie', ''))
             token = cookie['xray_session'].value
@@ -108,7 +132,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         page,topic=web_pages.route(path)
         if path in ('/','/login') or page:
-            _,session=self.session()
+            _,session=self.browser_session()
             if path=='/':self.redirect('/overview' if session else '/login');return
             if path=='/login':
                 if session:self.redirect(web_pages.safe_next(parse_qs(urlsplit(self.path).query).get('next',['/overview'])[0]))
@@ -129,7 +153,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
             if asset.is_file() and asset.suffix in ('.js','.css'):
                 self.respond(200,asset.read_bytes(),content_type='text/javascript' if asset.suffix=='.js' else 'text/css')
                 return
-        if path in ('/login.js', '/updates.js', '/app.js', '/management.js', '/terminal-stream.js', '/theme.js', '/i18n.js', '/locales.json', '/style.css', '/favicon.png'):
+        if path in ('/tokens.js', '/login.js', '/updates.js', '/app.js', '/management.js', '/terminal-stream.js', '/theme.js', '/i18n.js', '/locales.json', '/style.css', '/favicon.png'):
             filename = 'index.html' if path == '/' else path[1:]
             kind = {'html':'text/html; charset=utf-8', 'js':'text/javascript; charset=utf-8',
                     'css':'text/css; charset=utf-8', 'png':'image/png', 'json':'application/json; charset=utf-8'}[filename.rsplit('.', 1)[1]]
@@ -138,6 +162,12 @@ class Panel(http.server.BaseHTTPRequestHandler):
         token, session = self.session()
         if not session:
             self.respond(401, {'error': 'Требуется вход.'})
+        elif path == '/api/account/tokens':
+            if session.get('auth_method') == 'token':
+                self.respond(403, {'error': 'Управление API-токенами доступно после входа в панель.'});return
+            from api_tokens import ApiTokens
+            try:self.respond(200, {'tokens': ApiTokens(self.accounts()).list(session['user'])})
+            except ValueError:self.respond(401, {'error': 'Требуется вход.'})
         elif path.startswith('/api/avatar/') and re.fullmatch(r'/api/avatar/[a-zA-Z0-9_-]{1,64}',path):
             avatar=self.controller.directory/'avatars'/(path.rsplit('/',1)[1]+'.png')
             self.respond(200,avatar.read_bytes(),content_type='image/png') if avatar.is_file() else self.respond(404,{'error':'Не найдено.'})
@@ -204,7 +234,10 @@ class Panel(http.server.BaseHTTPRequestHandler):
             if not session:
                 self.respond(401, {'error': 'Требуется вход.'})
                 return
-            if not hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), session['csrf']):
+            bearer = session.get('auth_method') == 'token'
+            if bearer and (path.startswith('/api/account/tokens') or path == '/api/logout'):
+                self.respond(403, {'error': 'Управление API-токенами доступно после входа в панель.'});return
+            if not bearer and not hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), session['csrf']):
                 self.respond(403, {'error': 'Недействительный CSRF-токен.'})
                 return
             shared_write=path=='/api/settings' or path.startswith(('/api/profiles/','/api/ip-lists/','/api/routeros/','/api/users/','/api/updates/'))
@@ -220,7 +253,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
             elif path.startswith('/api/account/'):
                 try:
                     accounts=self.accounts();actor=session['user'];codes=None
-                    if path.startswith('/api/account/2fa/'):
+                    if path.startswith('/api/account/2fa/') or path == '/api/account/tokens/create':
                         with self.controller.lock:
                             now=time.time()
                             attempts=[stamp for stamp in self.security_attempts.get(actor['id'],[]) if stamp>now-60]
@@ -228,7 +261,20 @@ class Panel(http.server.BaseHTTPRequestHandler):
                                 self.respond(429,{'error':'Слишком много попыток. Повторите через минуту.'});return
                             if len(self.security_attempts)>1024:self.security_attempts.clear()
                             self.security_attempts[actor['id']]=attempts+[now]
-                    if path=='/api/account/profile':user=accounts.profile(actor,data)
+                    if path == '/api/account/tokens/create':
+                        from api_tokens import ApiTokens
+                        result = ApiTokens(accounts).create(actor, data)
+                        with self.controller.lock:self.update_session_user(token, result['user'])
+                        self.respond(201, result);return
+                    elif path == '/api/account/tokens/revoke':
+                        from api_tokens import ApiTokens
+                        identifier = str(data.get('id', ''))
+                        ApiTokens(accounts).revoke(actor, identifier)
+                        identity = 'api:' + identifier
+                        with self.controller.lock:self.token_sessions.pop(identity, None)
+                        if hasattr(self.controller, 'router_service'):self.router().logout(identity)
+                        self.respond(200, {'ok': True});return
+                    elif path=='/api/account/profile':user=accounts.profile(actor,data)
                     elif path=='/api/account/avatar':user=accounts.avatar(actor,data.get('image',''))
                     elif path=='/api/account/2fa/setup':
                         self.respond(200,accounts.setup_factor(actor,data.get('password')));return

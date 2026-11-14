@@ -14,6 +14,7 @@ node --check gateway/web/app.js
 node --check gateway/web/theme.js
 node scripts/check_page_runtime.mjs
 node scripts/check_login_frontend.mjs
+node scripts/check_tokens_frontend.mjs
 node scripts/check_panel_frontend.mjs
 node scripts/check_terminal_emulator.mjs
 python scripts/check_docs.py

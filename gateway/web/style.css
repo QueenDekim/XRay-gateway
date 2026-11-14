@@ -959,3 +959,19 @@ nav a, .account-controls a { text-decoration: none; }
 .wiki-article code { font: 12px/1.7 Consolas, monospace; }
 @media (max-width: 900px) { .wiki-layout { grid-template-columns: minmax(0,1fr); gap: 24px; } .wiki-navigation { position: static; display: flex; flex-wrap: wrap; } }
 @media (max-width: 700px) { .update-notice button { min-height: 44px; } }
+
+.token-create-form { margin-top: 24px; }
+.token-create-form > .primary { width: auto; }
+.token-list { margin-top: 24px; border-top: 1px solid var(--line); }
+.token-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 24px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.token-identity, .token-expiry { display: grid; gap: 4px; min-width: 0; }
+.token-identity b { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.token-identity code, .token-expiry { font: 12px/1.5 Consolas, monospace; color: var(--secondary); overflow-wrap: anywhere; }
+.token-expiry { text-align: right; font-variant-numeric: tabular-nums; }
+.token-value-dialog { max-width: 640px; }
+#tokenValue { overflow-wrap: anywhere; resize: none; font-family: Consolas, monospace; }
+@media (max-width: 700px) {
+ .token-row { grid-template-columns: minmax(0,1fr) auto; gap: 12px; }
+ .token-row > button { grid-column: 2; min-height: 44px; }
+ .token-expiry { grid-column: 1; grid-row: 2; text-align: left; }
+}

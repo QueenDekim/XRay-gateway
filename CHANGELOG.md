@@ -1,6 +1,14 @@
 # Changelog
 
-## 1.9.0
+## 1.10.0
+
+- Authenticate API integrations with named, expiring Bearer tokens.
+- Create and revoke tokens under personal settings; confirm each issue with 2FA when enabled.
+- Store token hashes and display each secret once; preserve the owner’s access restrictions.
+- Revoke token access after password, role or 2FA security changes.
+- Document Bearer authentication and token management in the API Wiki.
+
+## [1.9.0](https://github.com/QueenDekim/XRay-gateway/tree/1.9.0-25aa28a)
 
 - Serve login, overview, profiles, lists, RouterOS and settings as separate pages; retain the current page and settings tab on reload.
 - Restore encrypted sessions after panel restarts without flashing the login screen.

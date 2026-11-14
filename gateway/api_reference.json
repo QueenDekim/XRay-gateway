@@ -13,12 +13,16 @@
           "en": "API paths are relative to the panel URL. Requests and responses use JSON."
         },
         {
-          "ru": "После входа сохраняйте cookie xray_session. Получите csrf через GET /api/state и передавайте его в X-CSRF-Token для защищённых POST-запросов.",
-          "en": "Keep the xray_session cookie after login. Read csrf from GET /api/state and send it in X-CSRF-Token for protected POST requests."
+          "ru": "Создайте API-токен в настройках пользователя, вкладка API. Передавайте Authorization: Bearer <token> в каждом запросе. Для Bearer-запросов cookie и CSRF-токен не требуются. Используйте HTTPS.",
+          "en": "Create an API token under your name → API. Send Authorization: Bearer <token> on each request. Bearer requests need no cookie or CSRF token. Use HTTPS."
         },
         {
           "ru": "Ошибки возвращают поле error. Accept-Language: en включает английский язык; по умолчанию используется русский. Коды 400, 401, 403, 429 и 503 обозначают неверные данные, отсутствие сессии, запрет доступа, ограничение частоты и недоступность операции.",
           "en": "Errors return an error field. Accept-Language: en selects English; Russian is the default. Status codes 400, 401, 403, 429 and 503 mean invalid input, missing session, forbidden access, rate limit and unavailable operation."
+        },
+        {
+          "ru": "Токен наследует права владельца. Роль user допускает вход обычного пользователя или администратора; admin требует администратора. Управление API-токенами доступно только через сессию панели.",
+          "en": "Tokens inherit their owner’s permissions. The user role accepts a regular user or administrator; admin requires an administrator. Token management requires a panel session."
         }
       ],
       "endpoints": [
@@ -56,6 +60,10 @@
         "en": "Authentication and sessions"
       },
       "paragraphs": [
+        {
+          "ru": "Для интеграций используйте API-токены. Следующие методы обслуживают вход и выход веб-панели; сессионные POST-запросы требуют X-CSRF-Token из GET /api/state.",
+          "en": "Use API tokens for integrations. The following methods handle web panel sign-in and sign-out. Session-based POST requests require X-CSRF-Token from GET /api/state."
+        },
         {
           "ru": "Сессия действует 12 часов. Панель хранит сессии зашифрованными и проверяет ревизию учётной записи при каждом обращении. Смена пароля и прав отзывает старые сессии.",
           "en": "Sessions last 12 hours. The panel stores sessions encrypted and checks the account revision on each request. Password or role changes revoke earlier sessions."
@@ -108,6 +116,67 @@
             "en": "Revoke the current session and close its RouterOS terminal."
           },
           "request": {},
+          "response": {
+            "ok": true
+          }
+        }
+      ]
+    },
+    {
+      "slug": "tokens",
+      "title": {
+        "ru": "API-токены",
+        "en": "API tokens"
+      },
+      "paragraphs": [
+        {
+          "ru": "Откройте своё имя → API. Укажите название и срок действия от 1 до 365 дней. При включённой 2FA подтвердите каждый выпуск кодом аутентификатора или резервным кодом. Панель показывает полный токен один раз; на диске хранится SHA-256 хеш.",
+          "en": "Open your name → API. Enter a name and a lifetime from 1 to 365 days. With 2FA enabled, confirm each token with an authenticator or recovery code. Copy the full token when it appears; the panel stores its SHA-256 hash and does not display it again."
+        },
+        {
+          "ru": "Используйте Authorization: Bearer <token>. Токен имеет права владельца: обычный пользователь не может менять профили, IP-списки и RouterOS. Отзыв, истечение срока, удаление пользователя, смена пароля, прав или состояния 2FA прекращают доступ по токену.",
+          "en": "Send Authorization: Bearer <token>. A token has its owner’s permissions: regular users cannot change profiles, IP lists or RouterOS. Revocation, expiry, account deletion, password or role changes and 2FA security changes invalidate tokens."
+        },
+        {
+          "ru": "Можно иметь до 20 действующих токенов. Выпуск, просмотр списка и отзыв требуют сессию панели и CSRF для POST. Bearer-токен не даёт доступ к этим операциям или HTML-страницам. На защищённых API-маршрутах неверный Authorization возвращает 401 даже при наличии действующей cookie.",
+          "en": "You can keep up to 20 active tokens. Creating, listing and revoking tokens requires a panel session, plus CSRF for POST. Bearer credentials do not authorize those operations or HTML pages. On protected API routes, an invalid Authorization header returns 401 even when a valid cookie is present."
+        }
+      ],
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/account/tokens",
+          "role": "user (panel session)",
+          "description": {
+            "ru": "Метаданные только собственных токенов: id, name, prefix, created_at, expires_at и active. Секрет и хеш не возвращаются.",
+            "en": "Return metadata for your own tokens: id, name, prefix, created_at, expires_at and active. The response omits secrets and hashes."
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/account/tokens/create",
+          "role": "user (panel session)",
+          "description": {
+            "ru": "Создаёт токен и возвращает 201 с полным token, метаданными item и обновлённым user. name обязателен; days по умолчанию 90. При включённой 2FA обязателен code. Повторно использованный код отклоняется. Ограничение: пять операций безопасности за минуту на пользователя.",
+            "en": "Create a token and return 201 with the full token, item metadata and refreshed user. Require name; days defaults to 90. Require code when 2FA is enabled and reject reused codes. Limit security operations to five per user per minute."
+          },
+          "request": {
+            "name": "Monitoring",
+            "days": 90,
+            "code": "123456"
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/account/tokens/revoke",
+          "role": "user (panel session)",
+          "description": {
+            "ru": "Отзывает собственный токен по id. Следующие запросы с ним возвращают 401. Отзыв закрывает связанные терминалы RouterOS.",
+            "en": "Revoke one of your tokens by ID. Subsequent requests using it return 401. Revocation closes its RouterOS terminals."
+          },
+          "request": {
+            "id": "token-id"
+          },
           "response": {
             "ok": true
           }

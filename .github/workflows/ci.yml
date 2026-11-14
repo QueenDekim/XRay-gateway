@@ -36,6 +36,8 @@ jobs:
       - run: node --check gateway/web/updates.js
       - run: node scripts/check_page_runtime.mjs
       - run: node scripts/check_login_frontend.mjs
+      - run: node scripts/check_tokens_frontend.mjs
+      - run: node --check gateway/web/tokens.js
       - run: node scripts/check_panel_frontend.mjs
       - run: node scripts/check_terminal_emulator.mjs
       - run: python scripts/check_docs.py

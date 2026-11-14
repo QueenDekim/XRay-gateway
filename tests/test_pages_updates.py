@@ -36,7 +36,7 @@ class PageTests(unittest.TestCase):
         self.assertEqual(self.get('/login?next=%2Fsettings%23updates',self.headers)[2]['Location'],'/settings#updates')
 
     def test_all_wiki_sections_are_separate_documents(self):
-        for topic in ['start','authentication','profiles','ip-lists','routeros','terminal','accounts','settings','updates']:
+        for topic in ['start','authentication','tokens','profiles','ip-lists','routeros','terminal','accounts','settings','updates']:
             status,body,_=self.get('/wiki/'+topic,self.headers);self.assertEqual(status,200);self.assertNotIn('{{WIKI_CONTENT}}',body)
             self.assertIn('class="wiki-article"',body);self.assertIn('aria-current="page" href="'+('/wiki' if topic=='start' else '/wiki/'+topic)+'"',body)
         self.assertEqual(self.get('/wiki/../../auth.json',self.headers)[0],404)

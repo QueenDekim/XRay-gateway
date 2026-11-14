@@ -1,5 +1,7 @@
 # Authentication and sessions
 
+Use API tokens for integrations. The following methods handle web panel sign-in and sign-out. Session-based POST requests require X-CSRF-Token from GET /api/state.
+
 Sessions last 12 hours. The panel stores sessions encrypted and checks the account revision on each request. Password or role changes revoke earlier sessions.
 
 With 2FA enabled, the first request returns a challenge without a cookie. Submit challenge and code in the second request. An unfinished login expires after three minutes.

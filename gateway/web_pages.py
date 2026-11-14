@@ -4,7 +4,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 PAGES={'overview':'Обзор','profiles':'Профили','iplists':'IP-списки','routeros':'RouterOS','settings':'Настройки','account':'Моя учётная запись','wiki':'API Wiki'}
-WIKI_TOPICS={'start','authentication','profiles','ip-lists','routeros','terminal','accounts','settings','updates'}
+WIKI_TOPICS={'start','authentication','tokens','profiles','ip-lists','routeros','terminal','accounts','settings','updates'}
 
 
 def route(path):

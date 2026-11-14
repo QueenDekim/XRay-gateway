@@ -109,6 +109,12 @@
       "revision": "e1b40c69643be965ed972cfc306d094219630a2f",
       "tag": "1.8.0-e1b40c6",
       "summary": "Select, rename and prioritize subscription profiles in a modal; group profiles by subscription."
+    },
+    {
+      "version": "1.8.1",
+      "revision": "ec9bd895f5f6d8266d8bb93696018244b9e67b52",
+      "tag": "1.8.1-ec9bd89",
+      "summary": "Correct historical version numbers and validate release tags and packaged metadata."
     }
   ]
 }

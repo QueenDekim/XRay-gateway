@@ -1,6 +1,11 @@
 # Changelog
 
-## 1.8.1
+## 1.8.2
+
+- Publish tested Linux amd64/arm64 gateway images to GitHub Container Registry.
+- Include version aliases, source labels and license notices in published images.
+
+## [1.8.1](https://github.com/QueenDekim/XRay-gateway/tree/1.8.1-ec9bd89)
 
 - Use feature-based minor versions and patch versions for fixes.
 - Validate release tags against VERSION and the source revision.

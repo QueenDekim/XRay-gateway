@@ -78,3 +78,23 @@ addresses into `.env`, preserve the runtime directory and keep the same Xray
 image version in both services. Stored panel settings override their initial
 environment defaults. Review them after migration; changing a Compose address
 does not rewrite stored RouterOS settings.
+
+## Use a published image
+
+After configuring the network and initial password, set this value in `.env`:
+
+```dotenv
+GATEWAY_IMAGE=ghcr.io/queendekim/xray-gateway:1.8.2
+```
+
+Pull the gateway and matching core, then start without a local build:
+
+```sh
+docker compose pull gateway xray
+docker compose up -d --no-build
+```
+
+Keep XRAY_IMAGE pinned to the version used by the release. The published gateway
+contains the validation executable; the separate Xray service handles traffic.
+A full release tag or image digest also works as GATEWAY_IMAGE. See
+[Releases](releases.md#container-publication) for tags and package visibility.

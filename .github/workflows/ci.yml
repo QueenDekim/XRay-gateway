@@ -47,3 +47,88 @@ jobs:
       - run: docker build --build-arg SOURCE_REVISION=${{ github.sha }} -f gateway/Dockerfile -t xray-gateway:test .
       - run: python3 scripts/check_vless_transports.py --image xray-gateway:test
       - run: python3 scripts/smoke_container.py --image xray-gateway:test
+
+  publish:
+    name: Publish GHCR image
+    needs: [test, image]
+    if: github.ref_type == 'tag' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: ghcr-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 scripts/check_version.py --tag "$RELEASE_TAG"
+      - name: Prepare image tags
+        id: meta
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          version=$(cat VERSION)
+          minor="${version%.*}"
+          major="${version%%.*}"
+          {
+            echo "image=$image"
+            echo "version=$version"
+            echo 'tags<<IMAGE_TAGS'
+            printf '%s\n' "$image:$RELEASE_TAG" "$image:$version" "$image:$minor" "$image:$major" "$image:latest"
+            echo 'IMAGE_TAGS'
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Build and publish
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: gateway/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: SOURCE_REVISION=${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=Xray Gateway
+            org.opencontainers.image.description=Transparent Xray gateway and web management panel
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.licenses=Apache-2.0
+          cache-from: type=gha,scope=gateway
+          cache-to: type=gha,mode=max,scope=gateway
+          provenance: mode=min
+      - name: Verify published image
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+          EXPECTED_REVISION: ${{ github.sha }}
+          EXPECTED_TAG: ${{ github.ref_name }}
+        run: |
+          docker pull "$IMAGE@$DIGEST"
+          docker run --rm --network none --entrypoint python3 \
+            -e EXPECTED_REVISION -e EXPECTED_TAG "$IMAGE@$DIGEST" \
+            -c 'import os; from version import build_info; info=build_info(); assert info["revision"]==os.environ["EXPECTED_REVISION"]; assert info["tag"]==os.environ["EXPECTED_TAG"]; print(info["version"])'
+          {
+            echo '### Published container'
+            echo "- Image: \`$IMAGE:$EXPECTED_TAG\`"
+            echo "- Digest: \`$DIGEST\`"
+            echo '- Platforms: linux/amd64, linux/arm64'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io

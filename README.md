@@ -98,3 +98,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for tests and contribution guidelines,
 
 Project code uses [Apache-2.0](LICENSE). Dependencies retain the licenses listed
 in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Prebuilt Linux images: `ghcr.io/queendekim/xray-gateway`. See
+[image deployment](docs/deployment.md#use-a-published-image) and
+[release publication](docs/releases.md#container-publication).

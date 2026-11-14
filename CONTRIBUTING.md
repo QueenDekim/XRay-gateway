@@ -32,3 +32,6 @@ panel uses concise labels and task feedback.
 NetLens has its own repository and checks. Commit its changes there before
 updating this repository's submodule revision. Explain the change and relevant
 validation in the pull request. Contributions use the project's Apache-2.0 license.
+
+For version changes and tags, follow [Releases](docs/releases.md). Bump minor
+for new capabilities and patch for fixes before publishing a release.

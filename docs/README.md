@@ -12,3 +12,5 @@
 
 Examples use `192.168.50.0/24`. Replace the example addresses with your own
 network. Commands assume a shell in the repository root.
+
+See [Releases](releases.md) for version numbers, tag checks and publication.

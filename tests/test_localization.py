@@ -5,6 +5,7 @@ import re
 import sys
 import threading
 import unittest
+import tempfile
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'gateway'),str(ROOT/'scripts')]
@@ -23,7 +24,7 @@ class LocalizationTests(unittest.TestCase):
                 connection.request('GET',path);response=connection.getresponse();raw=response.read()
                 self.assertEqual(response.status,200,path)
                 if path=='/api/version':
-                    info=json.loads(raw);self.assertRegex(info['version'],r'^1\.0-[0-9a-f]{7}$')
+                    info=json.loads(raw);self.assertRegex(info['version'],r'^\d+\.\d+\.\d+-[0-9a-f]{7}$')
                     self.assertEqual(info['url'],'https://github.com/QueenDekim/XRay-gateway/tree/'+info['version'])
                 if path=='/locales.js':self.assertTrue(raw.startswith(b'window.XrayMessages = '))
                 connection.close()
@@ -53,5 +54,21 @@ class LocalizationTests(unittest.TestCase):
             self.assertEqual(sorted(re.findall(r'\{\d+\}',source)),sorted(re.findall(r'\{\d+\}',target)),source)
 
     def test_build_revision_override_is_checked(self):
-        self.assertEqual(build_info('f'*40)['version'],'1.0-fffffff')
+        self.assertEqual(build_info('f'*40)['version'],(ROOT/'VERSION').read_text().strip()+'-fffffff')
         with self.assertRaises(ValueError):build_info('unsafe/ref')
+
+    def test_historical_revision_keeps_its_reclassified_version(self):
+        entries=json.loads((ROOT/'release-history.json').read_text())['releases']
+        for entry in entries:
+            self.assertEqual(build_info(entry['revision'])['tag'],entry['tag'])
+            self.assertEqual(build_info(entry['revision'][:7])['base_version'],entry['version'])
+
+    def test_source_version_can_change_without_changing_the_hash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);(root/'VERSION').write_text('2.3.4\n')
+            self.assertEqual(build_info('a'*40,root=root)['version'],'2.3.4-aaaaaaa')
+            (root/'VERSION').write_text('2.4.0\n')
+            self.assertEqual(build_info('a'*40,root=root)['version'],'2.4.0-aaaaaaa')
+            for value in ['1.0','01.2.3','1.2.3/unsafe']:
+                (root/'VERSION').write_text(value)
+                with self.assertRaises(ValueError):build_info('a'*40,root=root)

@@ -308,9 +308,9 @@ function reloadAppearance(storageApi, systemDark){
 storage.set('xray-design','console');storage.set('xray-theme','dark');
 assert.deepEqual({...reloadAppearance({getItem:key=>storage.get(key)},false)},{design:'console',theme:'dark'});
 assert.deepEqual({...reloadAppearance({getItem(){throw new Error('blocked');}},true)},{design:'titan',theme:'dark'});
-context.fetch=async url=>{assert.equal(url,'/api/version');return{ok:true,json:async()=>({version:'1.0-abcdef0',url:'https://github.com/QueenDekim/XRay-gateway/tree/1.0-abcdef0'})};};
+context.fetch=async url=>{assert.equal(url,'/api/version');return{ok:true,json:async()=>({version:'1.8.1-abcdef0',url:'https://github.com/QueenDekim/XRay-gateway/tree/1.8.1-abcdef0'})};};
 await vm.runInContext('loadVersion()',context);
-for(const link of versionLinks){assert.equal(link.textContent,'1.0-abcdef0');assert.equal(link.attributes.href,'https://github.com/QueenDekim/XRay-gateway/tree/1.0-abcdef0');assert.equal(link.hidden,false);}
+for(const link of versionLinks){assert.equal(link.textContent,'1.8.1-abcdef0');assert.equal(link.attributes.href,'https://github.com/QueenDekim/XRay-gateway/tree/1.8.1-abcdef0');assert.equal(link.hidden,false);}
 // Saving a subscription opens a separate modal, without a separate download button.
 const originalFormData=context.FormData;
 for(const name of ['name','priority','enabled','uri'])nodes.profileForm.elements.namedItem(name);

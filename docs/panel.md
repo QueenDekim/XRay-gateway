@@ -76,7 +76,8 @@ The browser saves your language choice. Switching languages keeps unsaved form
 values and updates labels, messages, chart captions and date formats.
 
 The lower-left version link opens the matching GitHub tag. Versions use
-`1.0-<short commit SHA>`; each repository uses its own seven-character SHA.
+`MAJOR.MINOR.PATCH-<short commit SHA>`; each repository has its own version
+sequence and seven-character SHA. See [Releases](releases.md) for bump rules.
 The container build records the source revision, so the panel can show it
 without Git at runtime.
 

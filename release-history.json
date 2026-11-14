@@ -1,0 +1,114 @@
+{
+  "format": 1,
+  "repository": "QueenDekim/XRay-gateway",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "revision": "c657815b31616574552b9897f0964f52e1db9670",
+      "tag": "1.0.0-c657815",
+      "summary": "Configurable deployment, dashboard, RouterOS scripts and NetLens submodule."
+    },
+    {
+      "version": "1.1.0",
+      "revision": "6744ab862a9474866f62ef16669b2a2fc39a62bf",
+      "tag": "1.1.0-6744ab8",
+      "summary": "Russian and English interfaces, language selection and linked build versions."
+    },
+    {
+      "version": "1.1.1",
+      "revision": "4c5ba971a4e46c54bb03bf37c8dce0094b526cb8",
+      "tag": "1.1.1-4c5ba97",
+      "summary": "Update the NetLens submodule with the portable Tcl/Tk fix."
+    },
+    {
+      "version": "1.2.0",
+      "revision": "aa72ba32f17fd5d57d08d4333f513a4c7d876c3c",
+      "tag": "1.2.0-aa72ba3",
+      "summary": "Import subscription URLs and reset profile check counters; fix VLESS validation."
+    },
+    {
+      "version": "1.3.0",
+      "revision": "a118b51bdc06836e850eb601278afbdfd187f82d",
+      "tag": "1.3.0-a118b51",
+      "summary": "Support VLESS transports with TLS, REALITY and no transport encryption."
+    },
+    {
+      "version": "1.4.0",
+      "revision": "b657483326a0abe0a5ba04da521484802f55492a",
+      "tag": "1.4.0-b657483",
+      "summary": "Managed RouterOS SSH, direct list operations, personal accounts, avatars and TOTP 2FA."
+    },
+    {
+      "version": "1.4.1",
+      "revision": "0f7922cd38de5e9f0a78120559499c6761377beb",
+      "tag": "1.4.1-0f7922c",
+      "summary": "Use themed confirmation dialogs for panel operations."
+    },
+    {
+      "version": "1.4.2",
+      "revision": "333ce0f2a31dd433fde2312e46f55b5900af7cff",
+      "tag": "1.4.2-333ce0f",
+      "summary": "Keep login fields editable during two-factor authentication."
+    },
+    {
+      "version": "1.4.3",
+      "revision": "b51060a46498cf88ea6c33eda5a3d1b3795d8303",
+      "tag": "1.4.3-b51060a",
+      "summary": "Preserve login credentials while requesting a two-factor code."
+    },
+    {
+      "version": "1.4.4",
+      "revision": "6ed8370f77a5c0f4ec2fa64460fb6259893c7aec",
+      "tag": "1.4.4-6ed8370",
+      "summary": "Request two-factor codes in a separate login dialog."
+    },
+    {
+      "version": "1.4.5",
+      "revision": "ffed7bf39d51c01386edb0fee7c033ab47dace8c",
+      "tag": "1.4.5-ffed7bf",
+      "summary": "Polish account controls and show masked placeholders for saved RouterOS credentials."
+    },
+    {
+      "version": "1.5.0",
+      "revision": "c0f5100cba42208b369c45df28d8c120c26dc068",
+      "tag": "1.5.0-c0f5100",
+      "summary": "Accept domains in mixed lists and connect the RouterOS terminal on page entry."
+    },
+    {
+      "version": "1.5.1",
+      "revision": "9d0f94c1c372020cddf357a5568d661a18ff7454",
+      "tag": "1.5.1-9d0f94c",
+      "summary": "Trim excess blank rows during RouterOS terminal startup."
+    },
+    {
+      "version": "1.5.2",
+      "revision": "f0ce224f434ddcc0f08fd88d4260ce925648df80",
+      "tag": "1.5.2-f0ce224",
+      "summary": "Preserve terminal probes and visible banner rows while removing blank scrollback."
+    },
+    {
+      "version": "1.6.0",
+      "revision": "353eef543e6fc37fca1cdc9a832d117a3fa467b8",
+      "tag": "1.6.0-353eef5",
+      "summary": "Give regular users read-only shared data and full-list viewing."
+    },
+    {
+      "version": "1.6.1",
+      "revision": "209592dc1ea2760ec94e1d3e896f492ce6db3cb5",
+      "tag": "1.6.1-209592d",
+      "summary": "Hide RouterOS from regular users and avoid misleading perfect success rates."
+    },
+    {
+      "version": "1.7.0",
+      "revision": "68e738326379a2192acb59eec39f9b3ebb4cfd8e",
+      "tag": "1.7.0-68e7383",
+      "summary": "Review and import multiple VLESS subscription profiles in one update."
+    },
+    {
+      "version": "1.8.0",
+      "revision": "e1b40c69643be965ed972cfc306d094219630a2f",
+      "tag": "1.8.0-e1b40c6",
+      "summary": "Select, rename and prioritize subscription profiles in a modal; group profiles by subscription."
+    }
+  ]
+}

@@ -50,7 +50,7 @@ def main():
 jar=http.cookiejar.CookieJar()
 client=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 info=json.load(client.open('http://127.0.0.1:8080/api/version'))
-assert re.fullmatch(r'1\.0-[0-9a-f]{7}',info['version']) and info['revision']
+assert re.fullmatch(r'\d+\.\d+\.\d+-[0-9a-f]{7}',info['version']) and info['revision']
 assert info['url'].endswith('/'+info['version'])
 assert b'window.XrayMessages = ' in client.open('http://127.0.0.1:8080/locales.js').read()
 request=urllib.request.Request('http://127.0.0.1:8080/api/login',data=json.dumps({'username':'smoke-owner','password':'smoke-test-password'}).encode(),headers={'Content-Type':'application/json'})

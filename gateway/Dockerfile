@@ -14,5 +14,6 @@ COPY --from=xray /usr/local/bin/xray /usr/local/bin/xray
 COPY gateway/ /app/
 COPY scripts/render.py /app/render.py
 COPY VERSION /VERSION
+COPY release-history.json /release-history.json
 COPY --from=metadata /build-info.json /app/_build.json
 CMD ["python3","-u","/app/main.py"]

@@ -311,50 +311,73 @@ assert.deepEqual({...reloadAppearance({getItem(){throw new Error('blocked');}},t
 context.fetch=async url=>{assert.equal(url,'/api/version');return{ok:true,json:async()=>({version:'1.0-abcdef0',url:'https://github.com/QueenDekim/XRay-gateway/tree/1.0-abcdef0'})};};
 await vm.runInContext('loadVersion()',context);
 for(const link of versionLinks){assert.equal(link.textContent,'1.0-abcdef0');assert.equal(link.attributes.href,'https://github.com/QueenDekim/XRay-gateway/tree/1.0-abcdef0');assert.equal(link.hidden,false);}
-// Subscription imports expose each reviewed node and preserve the selected subset.
+// Saving a subscription opens a separate modal, without a separate download button.
 const originalFormData=context.FormData;
 for(const name of ['name','priority','enabled','uri'])nodes.profileForm.elements.namedItem(name);
 context.FormData=class {constructor(form){this.form=form;} *[Symbol.iterator](){for(const name of ['name','priority','uri'])yield [name,this.form.elements[name].value];}};
 vm.runInContext(`state=${JSON.stringify(sample)};editProfile(null);`,context);
+assert.ok(!html.includes('id="loadSubscription"'));
 const subscriptionProfiles=[{id:'a',name:'<First>',address:'one.example.org',port:443,transport:'tcp',security:'reality'},
  {id:'b',name:'Second',address:'two.example.org',port:8443,transport:'xhttp',security:'tls'}];
 let subscriptionCalls=[];
 context.fetch=async(url,options)=>{
  const data=options?.body?JSON.parse(options.body):null;subscriptionCalls.push({url,data});
- return{ok:true,json:async()=>url==='/api/profiles/preview'?{token:'preview-token',profiles:subscriptionProfiles}:url==='/api/state'?sample:{ok:true}};
+ return{ok:true,json:async()=>url==='/api/profiles/preview'?{token:'preview-token',profiles:subscriptionProfiles,group:{id:'sub_test',name:'Test subscription'}}:url==='/api/state'?sample:{ok:true}};
 };
+const saveProfile=()=>nodes.profileForm.listeners.submit({preventDefault(){},target:nodes.profileForm,submitter:{disabled:false}});
+const saveSubscription=()=>nodes.subscriptionForm.listeners.submit({preventDefault(){},target:nodes.subscriptionForm,submitter:{disabled:false}});
+const chooseSubscription=(id,checked)=>{
+ const fields=[{disabled:!checked},{disabled:!checked}];
+ nodes.subscriptionOptions.listeners.change({target:{dataset:{subscriptionProfile:id},checked,closest:()=>({querySelectorAll:()=>fields})}});
+ assert.ok(fields.every(field=>field.disabled===!checked));
+};
+const editSubscription=(id,key,value)=>nodes.subscriptionOptions.listeners.input({target:{dataset:{[key==='name'?'subscriptionName':'subscriptionPriority']:id},value}});
 nodes.profileForm.elements.uri.value='https://example.org/sub/token';nodes.profileSource.listeners.input();
-assert.equal(nodes.loadSubscription.hidden,false);await nodes.loadSubscription.onclick();
-assert.equal(nodes.subscriptionProfiles.hidden,false);assert.equal(nodes.profileNameField.hidden,true);assert.equal(nodes.profileForm.elements.name.required,false);
-if(process.env.XRAY_UI_FIXTURE){let fixture=fs.readFileSync(process.env.XRAY_UI_FIXTURE,'utf8');fixture=fixture.replace('<div id="subscriptionOptions" class="subscription-options"></div>','<div id="subscriptionOptions" class="subscription-options">'+nodes.subscriptionOptions.innerHTML+'</div>').replace('class="subscription-profiles" hidden','class="subscription-profiles"');fs.writeFileSync(process.env.XRAY_UI_FIXTURE,fixture);}
-
+assert.equal(nodes.profileNameField.hidden,true);assert.equal(nodes.profilePriorityField.hidden,true);assert.equal(nodes.profileForm.elements.name.required,false);
+await saveProfile();
+assert.equal(nodes.subscriptionDialog.open,true);assert.equal(nodes.profileDialog.open,true);assert.equal(!!nodes.confirmationDialog.open,false);
+assert.ok(subscriptionCalls.every(v=>v.url==='/api/profiles/preview'));
 assert.ok(nodes.subscriptionOptions.innerHTML.includes('&lt;First&gt;'));assert.ok(!nodes.subscriptionOptions.innerHTML.includes('<First>'));
 assert.equal((nodes.subscriptionOptions.innerHTML.match(/type="checkbox"/g)||[]).length,2);
-assert.ok(subscriptionCalls.every(v=>v.url==='/api/profiles/preview'));
-nodes.subscriptionOptions.listeners.change({target:{dataset:{subscriptionProfile:'a'},checked:false}});
-assert.equal(nodes.profileNameField.hidden,false);assert.equal(nodes.profileForm.elements.name.value,'Second');
-nodes.subscriptionOptions.listeners.change({target:{dataset:{subscriptionProfile:'b'},checked:false}});
-assert.equal(nodes.profileNameField.hidden,true);assert.equal(nodes.profileForm.elements.name.required,false);
-await nodes.profileForm.listeners.submit({preventDefault(){},target:nodes.profileForm,submitter:{disabled:false}});
-assert.equal(nodes.profileError.textContent,'Выберите хотя бы один профиль подписки.');assert.ok(!subscriptionCalls.some(v=>v.url==='/api/profiles/add'));
-nodes.subscriptionOptions.listeners.change({target:{dataset:{subscriptionProfile:'b'},checked:true}});
-
-context.window.I18n.setLanguage('en');assert.ok(nodes.subscriptionOptions.innerHTML.includes('checked'));context.window.I18n.setLanguage('ru');
-const importRequest=nodes.profileForm.listeners.submit({preventDefault(){},target:nodes.profileForm,submitter:{disabled:false}});
-await new Promise(resolve=>setImmediate(resolve));assert.equal(nodes.confirmationDialog.open,true);nodes.confirmationAccept.onclick();await importRequest;
-const importCall=subscriptionCalls.find(v=>v.url==='/api/profiles/add');assert.equal(importCall.data.subscription_token,'preview-token');assert.deepEqual(importCall.data.subscription_profiles,['b']);assert.equal(importCall.data.name,'Second');
-assert.equal(nodes.profileDialog.open,false);assert.equal(nodes.subscriptionProfiles.hidden,true);
-vm.runInContext("editProfile('primary');",context);nodes.profileForm.elements.uri.value='https://example.org/sub/token';nodes.profileSource.listeners.input();await nodes.loadSubscription.onclick();
-assert.equal((nodes.subscriptionOptions.innerHTML.match(/type="radio"/g)||[]).length,2);assert.equal(nodes.profileNameField.hidden,false);
-nodes.subscriptionOptions.listeners.change({target:{dataset:{subscriptionProfile:'b'},checked:true}});
-assert.equal(vm.runInContext('profileImport.selected.size',context),1);assert.equal(vm.runInContext("profileImport.selected.has('b')",context),true);
-nodes.profileForm.elements.uri.value='vless://changed';nodes.profileSource.listeners.input();assert.equal(nodes.subscriptionProfiles.hidden,true);assert.equal(nodes.loadSubscription.hidden,true);assert.equal(vm.runInContext('profileImport',context),null);
-// Responses from a closed dialog or an edited source cannot repopulate it.
+assert.equal((nodes.subscriptionOptions.innerHTML.match(/data-subscription-name=/g)||[]).length,2);
+assert.equal((nodes.subscriptionOptions.innerHTML.match(/data-subscription-priority=/g)||[]).length,2);
+const subscriptionFixtureMarkup=nodes.subscriptionOptions.innerHTML;
+if(process.env.XRAY_UI_FIXTURE){let fixture=fs.readFileSync(process.env.XRAY_UI_FIXTURE,'utf8');fixture=fixture.replace('<div id="subscriptionOptions" class="subscription-options"></div>','<div id="subscriptionOptions" class="subscription-options">'+nodes.subscriptionOptions.innerHTML+'</div>');fs.writeFileSync(process.env.XRAY_UI_FIXTURE,fixture);}
+editSubscription('b','name','Renamed <branch>');editSubscription('b','priority','31');chooseSubscription('a',false);
+context.window.I18n.setLanguage('en');assert.ok(nodes.subscriptionOptions.innerHTML.includes('Renamed &lt;branch&gt;'));context.window.I18n.setLanguage('ru');
+chooseSubscription('b',false);await saveSubscription();assert.equal(nodes.subscriptionError.textContent,'Выберите хотя бы один профиль подписки.');
+chooseSubscription('b',true);nodes.subscriptionGroupName.value='My subscription';await saveSubscription();
+const importCall=subscriptionCalls.find(v=>v.url==='/api/profiles/add');assert.equal(importCall.data.subscription_token,'preview-token');assert.deepEqual(importCall.data.subscription_profiles,['b']);
+assert.deepEqual(importCall.data.subscription_options.b,{name:'Renamed <branch>',priority:31});assert.equal(importCall.data.subscription_name,'My subscription');
+assert.equal(nodes.profileDialog.open,false);assert.equal(nodes.subscriptionDialog.open,false);
+// Cancelling applies nothing. Saving again downloads a fresh candidate set.
+vm.runInContext('editProfile(null);',context);nodes.profileForm.elements.uri.value='https://example.org/sub/token';nodes.profileSource.listeners.input();await saveProfile();
+const appliedCount=subscriptionCalls.filter(v=>v.url==='/api/profiles/add').length,previewCount=subscriptionCalls.filter(v=>v.url==='/api/profiles/preview').length;
+nodes.closeSubscription.onclick();assert.equal(nodes.profileDialog.open,true);assert.equal(vm.runInContext('profileImport',context),null);
+assert.equal(subscriptionCalls.filter(v=>v.url==='/api/profiles/add').length,appliedCount);await saveProfile();assert.equal(subscriptionCalls.filter(v=>v.url==='/api/profiles/preview').length,previewCount+1);nodes.subscriptionDialog.close();nodes.profileDialog.close();
+vm.runInContext("editProfile('primary');",context);nodes.profileForm.elements.uri.value='https://example.org/sub/token';nodes.profileSource.listeners.input();await saveProfile();
+assert.equal((nodes.subscriptionOptions.innerHTML.match(/type="checkbox"/g)||[]).length,2);chooseSubscription('b',true);await saveSubscription();assert.equal(nodes.subscriptionError.textContent,'Для замены выберите один профиль подписки.');
+chooseSubscription('a',false);editSubscription('b','priority','1001');await saveSubscription();assert.equal(nodes.subscriptionError.textContent,'Некорректные приоритет или состояние профиля.');
+nodes.profileForm.elements.uri.value='vless://changed';nodes.profileSource.listeners.input();assert.equal(nodes.subscriptionDialog.open,false);assert.equal(nodes.profileNameField.hidden,false);assert.equal(vm.runInContext('profileImport',context),null);
+// Responses from a closed dialog or an edited source cannot reopen the modal.
 let finishPreview;context.fetch=async()=>({ok:true,json:()=>new Promise(resolve=>{finishPreview=resolve;})});
-nodes.profileForm.elements.uri.value='https://example.org/sub/old';const pendingPreview=nodes.loadSubscription.onclick();await new Promise(resolve=>setImmediate(resolve));nodes.profileDialog.close();finishPreview({token:'late',profiles:subscriptionProfiles});await pendingPreview;
-assert.equal(vm.runInContext('profileImport',context),null);assert.equal(nodes.subscriptionProfiles.hidden,true);
+nodes.profileForm.elements.uri.value='https://example.org/sub/old';const pendingPreview=saveProfile();await new Promise(resolve=>setImmediate(resolve));nodes.profileDialog.close();finishPreview({token:'late',profiles:subscriptionProfiles});await pendingPreview;
+assert.equal(vm.runInContext('profileImport',context),null);assert.equal(nodes.subscriptionDialog.open,false);
 context.FormData=originalFormData;
-console.log('SUBSCRIPTION PREVIEW / MULTI-SELECT / EDIT SELECTION / LATE RESPONSE PASS');
+// Groups gather interleaved subscription members while keeping each priority and reader permissions.
+const groupedSample=structuredClone(sample);groupedSample.profiles=[
+ {...sample.profiles[0],id:'group-a-first',priority:1,subscription:{id:'sub-a',name:'<Group A>'}},
+ {...sample.profiles[0],id:'standalone',priority:2,subscription:null},
+ {...sample.profiles[0],id:'group-a-last',priority:9,subscription:{id:'sub-a',name:'<Group A>'}}];
+vm.runInContext(`state=${JSON.stringify(groupedSample)};render();`,context);
+assert.equal((nodes.profileRows.innerHTML.match(/data-subscription-group="sub-a"/g)||[]).length,1);assert.ok(nodes.profileRows.innerHTML.includes('&lt;Group A&gt;'));assert.ok(nodes.profileRows.innerHTML.includes('Отдельные профили'));
+assert.ok(nodes.profileRows.innerHTML.indexOf('data-edit="group-a-last"')<nodes.profileRows.innerHTML.indexOf('data-edit="standalone"'));
+assert.ok(nodes.profileRows.innerHTML.includes('>1</td>'));assert.ok(nodes.profileRows.innerHTML.includes('>9</td>'));assert.ok(nodes.overviewProfiles.innerHTML.includes('profile-group-heading'));
+if(process.env.XRAY_UI_FIXTURE){let fixture=html;for(const id of ['overviewProfiles','profileRows','ipListCards','userRows','subscriptionOptions']){const pattern=new RegExp(`(<(div|tbody)[^>]*id="${id}"[^>]*>)[\\s\\S]*?(<\\/\\2>)`);fixture=fixture.replace(pattern,(_,open,tag,close)=>open+nodes[id].innerHTML+close);}fixture=fixture.replace('<div id="subscriptionOptions" class="subscription-options"></div>','<div id="subscriptionOptions" class="subscription-options">'+subscriptionFixtureMarkup+'</div>');fs.writeFileSync(process.env.XRAY_UI_FIXTURE,fixture);}
+
+vm.runInContext("state.user.role='operator';render();",context);assert.ok(nodes.profileRows.innerHTML.includes('colspan="6"'));assert.ok(!nodes.profileRows.innerHTML.includes('data-edit='));
+vm.runInContext(`state=${JSON.stringify(sample)};render();`,context);
+console.log('SAVE-TO-MODAL / CHECKBOXES / PER-NODE NAMES AND PRIORITIES / GROUPS / CANCEL PASS');
 const resetState=structuredClone(sample);
 resetState.csrf='test-csrf';resetState.profiles[0].stats.checks=0;resetState.profiles[0].stats.successful_checks=0;
 let resetCalled=false;

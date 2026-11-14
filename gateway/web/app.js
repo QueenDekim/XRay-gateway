@@ -71,61 +71,95 @@ function renderTraffic(){
  $('trafficChartDescription').textContent=history.length?t('{0} измерений. Входящий и исходящий трафик, байт в секунду. Максимум шкалы {1}. Последнее измерение: получено {2}, отправлено {3}',history.length,fmt(peak,true),fmt(history.at(-1).downlink_bps,true),fmt(history.at(-1).uplink_bps,true)):t('Ожидание измерений Xray');
 }
 document.addEventListener('appearancechange',()=>{if(state)renderTraffic();});
+function renderProfileGroups(profiles,row,table=false){
+ const grouped=profiles.some(p=>p.subscription);if(!grouped)return profiles.map(row).join('');
+ const groups=new Map();
+ for(const p of profiles){const key=p.subscription?.id||'';if(!groups.has(key))groups.set(key,{name:p.subscription?.name||t('Отдельные профили'),profiles:[]});groups.get(key).profiles.push(p);}
+ return [...groups].map(([id,group])=>{
+  const heading=table?`<tr class="profile-group-row" data-subscription-group="${esc(id)}"><th colspan="${canManage()?7:6}">${esc(group.name)}</th></tr>`:`<h2 class="profile-group-heading" data-subscription-group="${esc(id)}">${esc(group.name)}</h2>`;
+  return heading+group.profiles.map(row).join('');
+ }).join('');
+}
 function render(){const s=state,totals=s.totals;for(const id of ['addProfile','resetProfileChecks','addIpList','profileActionsHeader','routerNav'])$(id).hidden=!canManage();if(page==='routeros'&&!canManage())selectPage('overview');renderIpLists();renderSettings();notice(s.stats_error || s.last_error || '');$('username').textContent=s.user?.display_name||s.username;$('coreStatus').textContent=t(s.ready?'Xray работает':'Xray недоступен');$('coreStatus').classList.toggle('bad',!s.ready);$('totalDown').textContent=fmt(totals.downlink);$('totalUp').textContent=fmt(totals.uplink);$('downRate').textContent=fmt(totals.downlink_bps,true)+' '+window.I18n.t('сейчас');$('upRate').textContent=fmt(totals.uplink_bps,true)+' '+window.I18n.t('сейчас');$('uptime').textContent=duration(s.uptime);$('profileCount').textContent=window.I18n.t('{0} включено / {1} профилей',s.profiles.filter(p=>p.enabled).length,s.profiles.length);$('selectedName').textContent=s.profiles.find(p=>p.id===s.selected)?.name || 'Direct';$('routeSince').textContent=window.I18n.t('Выбран {0} назад',duration(Date.now()/1000-s.since));$('updated').textContent=window.I18n.t('Обновлено {0}',new Date().toLocaleTimeString(locale()));
- $('overviewProfiles').innerHTML=s.profiles.length?s.profiles.map(p=>`<article class="profile-card ${p.id===s.selected?'selected':''}"><div class="profile-identity"><div class="card-top"><h3>${esc(p.name)}</h3>${badge(p)}</div><p class="endpoint">${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</p></div><div class="card-stats"><div><small>${window.I18n.t('Задержка проверки')}</small><b>${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</b></div><div><small>${window.I18n.t('Успешных проверок')}</small><b>${successfulChecks(p.stats)}</b></div><div><small>${window.I18n.t('Получено')}</small><b>${fmt(p.stats.downlink)}</b></div><div><small>${window.I18n.t('Отправлено')}</small><b>${fmt(p.stats.uplink)}</b></div></div></article>`).join(''):`<p class="muted">${window.I18n.t('Профилей нет')}</p>`;
- $('profileRows').innerHTML=s.profiles.map(p=>`<tr><td><b>${esc(p.name)}</b><small>${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</small></td><td>${badge(p)}</td><td class="mono">${p.priority}</td><td class="mono">${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</td><td class="mono">↓ ${fmt(p.stats.downlink)}<small>↑ ${fmt(p.stats.uplink)}</small></td><td class="mono">${p.stats.successful_checks||0} / ${p.stats.checks||0}</td>${canManage()?`<td><button data-edit="${p.id}">${window.I18n.t('Изменить')}</button><button class="danger" data-delete="${p.id}">${window.I18n.t('Удалить')}</button></td>`:''}</tr>`).join('');$('directTraffic').textContent=`↓ ${fmt(s.direct.downlink)} / ↑ ${fmt(s.direct.uplink)}`;
+ $('overviewProfiles').innerHTML=s.profiles.length?renderProfileGroups(s.profiles,p=>`<article class="profile-card ${p.id===s.selected?'selected':''}"><div class="profile-identity"><div class="card-top"><h3>${esc(p.name)}</h3>${badge(p)}</div><p class="endpoint">${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</p></div><div class="card-stats"><div><small>${window.I18n.t('Задержка проверки')}</small><b>${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</b></div><div><small>${window.I18n.t('Успешных проверок')}</small><b>${successfulChecks(p.stats)}</b></div><div><small>${window.I18n.t('Получено')}</small><b>${fmt(p.stats.downlink)}</b></div><div><small>${window.I18n.t('Отправлено')}</small><b>${fmt(p.stats.uplink)}</b></div></div></article>`):`<p class="muted">${window.I18n.t('Профилей нет')}</p>`;
+ $('profileRows').innerHTML=renderProfileGroups(s.profiles,p=>`<tr><td><b>${esc(p.name)}</b><small>${esc(p.address)}:${esc(p.port)} · ${esc(profileTransport(p))}</small></td><td>${badge(p)}</td><td class="mono">${p.priority}</td><td class="mono">${p.health?.ok?p.health.latency_ms+' '+window.I18n.t('мс'):'—'}</td><td class="mono">↓ ${fmt(p.stats.downlink)}<small>↑ ${fmt(p.stats.uplink)}</small></td><td class="mono">${p.stats.successful_checks||0} / ${p.stats.checks||0}</td>${canManage()?`<td><button data-edit="${p.id}">${window.I18n.t('Изменить')}</button><button class="danger" data-delete="${p.id}">${window.I18n.t('Удалить')}</button></td>`:''}</tr>`,true);$('directTraffic').textContent=`↓ ${fmt(s.direct.downlink)} / ↑ ${fmt(s.direct.uplink)}`;
  renderTraffic();window.Management?.render();
 }
 let profileImport=null,profileSourceEpoch=0;
 function resetProfileImport(){
- profileSourceEpoch++;profileImport=null;$('subscriptionProfiles').hidden=true;$('subscriptionOptions').innerHTML='';
- $('profileNameField').hidden=false;$('profileForm').elements.name.required=true;
- $('loadSubscription').hidden=!/^https?:\/\//i.test($('profileForm').elements.uri.value.trim());
+ profileSourceEpoch++;profileImport=null;if($('subscriptionDialog').open)$('subscriptionDialog').close();
+ $('subscriptionOptions').innerHTML='';message('subscriptionError','');
 }
-function renderSubscriptionProfiles(updateOptions=true){
+function updateProfileSource(){
+ const subscription=/^https?:\/\//i.test($('profileForm').elements.uri.value.trim());
+ $('profileNameField').hidden=subscription;$('profileForm').elements.name.required=!subscription;
+ $('profilePriorityField').hidden=subscription;$('profileForm').elements.priority.required=!subscription;
+}
+function renderSubscriptionProfiles(){
  if(!profileImport)return;
- const chosen=profileImport.selected;
- if(updateOptions)$('subscriptionOptions').innerHTML=profileImport.profiles.map(p=>`<label class="subscription-option checkbox"><input type="${editing?'radio':'checkbox'}" name="subscriptionChoice" data-subscription-profile="${esc(p.id)}" ${chosen.has(p.id)?'checked':''}><span><b>${esc(p.name)}</b><small class="mono">${esc(p.address)}:${p.port} · ${esc(profileTransport(p))}</small></span></label>`).join('');
- $('subscriptionProfiles').hidden=false;$('profileNameField').hidden=!editing&&chosen.size!==1;
- const name=$('profileForm').elements.name;name.required=!$('profileNameField').hidden;
- if(!editing&&chosen.size===1&&!name.value)name.value=profileImport.profiles.find(p=>chosen.has(p.id)).name;
+ $('subscriptionOptions').innerHTML=profileImport.profiles.map(p=>{
+  const checked=profileImport.selected.has(p.id);
+  return `<div class="subscription-option"><label class="subscription-choice"><input class="subscription-check" type="checkbox" data-subscription-profile="${esc(p.id)}" aria-label="${esc(t('Выбрать профиль «{0}»',p.name))}" ${checked?'checked':''}></label><div class="subscription-identity"><input type="text" maxlength="80" required data-subscription-name="${esc(p.id)}" aria-label="${esc(t('Название профиля'))}" value="${esc(p.name)}" ${checked?'':'disabled'}><small class="mono">${esc(p.address)}:${p.port} · ${esc(profileTransport(p))}</small></div><label class="subscription-priority"><span>${t('Приоритет')}</span><input type="number" min="1" max="1000" required data-subscription-priority="${esc(p.id)}" value="${esc(p.priority)}" ${checked?'':'disabled'}></label></div>`;
+ }).join('');
 }
-async function loadProfileSubscription(){
- if(!canManage())return false;
- const source=$('profileForm').elements.uri.value.trim();resetProfileImport();const epoch=profileSourceEpoch,button=$('loadSubscription');button.disabled=true;message('profileError','Загрузка подписки…');
+async function loadProfileSubscription(data){
+ resetProfileImport();const epoch=profileSourceEpoch,source=data.uri.trim();message('profileError','Загрузка подписки…');
  try{
   const result=await api('/api/profiles/preview',{uri:source});
-  if(epoch!==profileSourceEpoch||!canManage()||!$('profileDialog').open||source!==$('profileForm').elements.uri.value.trim())return false;
-  const current=state.profiles.find(p=>p.id===editing),profiles=result.profiles;
+  if(epoch!==profileSourceEpoch||!canManage()||!$('profileDialog').open||source!==$('profileForm').elements.uri.value.trim())return;
+  const current=state.profiles.find(p=>p.id===editing),profiles=result.profiles.map((p,i)=>({...p,priority:p.priority??Math.min(1000,(Number(data.priority)||10)+i)}));
   const recommended=profiles.find(p=>p.address===current?.address&&p.port===current?.port&&p.transport===current?.transport&&p.security===current?.security)||profiles.find(p=>p.transport===current?.transport&&p.security===current?.security)||profiles[0];
-  profileImport={source,token:result.token,profiles,selected:new Set(editing?[recommended.id]:profiles.map(p=>p.id))};
-  renderSubscriptionProfiles();message('profileError',result.skipped?()=>t('Пропущено неподдерживаемых профилей: {0}',result.skipped):'');return true;
- }catch(error){if(epoch===profileSourceEpoch)message('profileError',error.message);return false;}finally{if(epoch===profileSourceEpoch)button.disabled=false;}
+  if(current){recommended.name=current.name;recommended.priority=current.priority;}
+  profileImport={source,token:result.token,profiles,data,selected:new Set(editing?[recommended.id]:profiles.map(p=>p.id))};
+  $('subscriptionGroupName').value=result.group?.name||current?.subscription?.name||t('Подписка');
+  renderSubscriptionProfiles();message('profileError','');message('subscriptionError',result.skipped?()=>t('Пропущено неподдерживаемых профилей: {0}',result.skipped):'');$('subscriptionDialog').showModal();
+ }catch(error){if(epoch===profileSourceEpoch)message('profileError',error.message);}
 }
-$('loadSubscription').onclick=loadProfileSubscription;
-$('profileSource').addEventListener('input',()=>{resetProfileImport();$('loadSubscription').disabled=false;message('profileError','');});
+$('profileSource').addEventListener('input',()=>{resetProfileImport();updateProfileSource();message('profileError','');});
 $('subscriptionOptions').addEventListener('change',event=>{
  const id=event.target.dataset.subscriptionProfile;if(!profileImport||!id)return;
- if(editing)profileImport.selected=new Set([id]);else if(event.target.checked)profileImport.selected.add(id);else profileImport.selected.delete(id);
- renderSubscriptionProfiles(false);
+ if(event.target.checked)profileImport.selected.add(id);else profileImport.selected.delete(id);
+ const row=event.target.closest('.subscription-option');
+ for(const input of row.querySelectorAll('input:not([type="checkbox"])'))input.disabled=!event.target.checked;
 });
-$('profileDialog').addEventListener('close',()=>{resetProfileImport();$('loadSubscription').disabled=false;});
-function editProfile(id){if(!canManage())return;editing=id;editRevision=state.revision;const p=state.profiles.find(p=>p.id===id),f=$('profileForm');f.reset();f.elements.name.value=p?.name||'';f.elements.priority.value=p?.priority||10;f.elements.enabled.checked=p?.enabled??true;f.elements.uri.required=!p;resetProfileImport();$('loadSubscription').disabled=false;$('dialogTitle').textContent=t(p?'Редактирование профиля':'Новый профиль');message('profileError','');$('profileDialog').showModal();}
+$('subscriptionOptions').addEventListener('input',event=>{
+ if(!profileImport)return;const key=event.target.dataset.subscriptionName?'name':'priority',id=event.target.dataset.subscriptionName||event.target.dataset.subscriptionPriority;
+ const entry=profileImport.profiles.find(p=>p.id===id);if(entry)entry[key]=event.target.value;
+});
+$('closeSubscription').onclick=()=>$('subscriptionDialog').close();
+$('subscriptionDialog').addEventListener('close',()=>{profileSourceEpoch++;profileImport=null;$('subscriptionOptions').innerHTML='';message('subscriptionError','');});
+$('profileDialog').addEventListener('close',resetProfileImport);
+function editProfile(id){if(!canManage())return;editing=id;editRevision=state.revision;const p=state.profiles.find(p=>p.id===id),f=$('profileForm');f.reset();f.elements.name.value=p?.name||'';f.elements.priority.value=p?.priority||10;f.elements.enabled.checked=p?.enabled??true;f.elements.uri.required=!p;resetProfileImport();updateProfileSource();$('dialogTitle').textContent=t(p?'Редактирование профиля':'Новый профиль');message('profileError','');$('profileDialog').showModal();}
+function profilePayload(form){const data=Object.fromEntries(new FormData(form));data.enabled=form.elements.enabled.checked;data.priority=Number(data.priority);data.revision=editRevision;if(editing)data.id=editing;return data;}
+$('subscriptionForm').addEventListener('submit',async event=>{
+ event.preventDefault();const button=event.submitter;if(!canManage()||!profileImport||button.disabled)return;button.disabled=true;message('subscriptionError','');
+ try{
+  const selection=profileImport,selected=[...selection.selected];
+  if(!selected.length)throw new Error(t('Выберите хотя бы один профиль подписки.'));
+  if(editing&&selected.length!==1)throw new Error(t('Для замены выберите один профиль подписки.'));
+  const options={};
+  for(const p of selection.profiles.filter(p=>selection.selected.has(p.id))){
+   const name=p.name.trim(),priority=Number(p.priority);
+   if(!name||name.length>80)throw new Error(t('Название должно содержать от 1 до 80 символов.'));
+   if(!Number.isInteger(priority)||priority<1||priority>1000)throw new Error(t('Некорректные приоритет или состояние профиля.'));
+   options[p.id]={name,priority};
+  }
+  const data={...selection.data,subscription_token:selection.token,subscription_profiles:selected,subscription_options:options,subscription_name:$('subscriptionGroupName').value.trim()};
+  if(!data.subscription_name||data.subscription_name.length>80)throw new Error(t('Название должно содержать от 1 до 80 символов.'));
+  message('subscriptionError','Применение…');await api('/api/profiles/'+(editing?'edit':'add'),data);
+  $('subscriptionDialog').close();$('profileDialog').close();await refresh();
+ }catch(error){message('subscriptionError',error.message);}finally{button.disabled=false;}
+});
 document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.page)selectPage(button.dataset.page);if(button.dataset.edit)editProfile(button.dataset.edit);if(button.dataset.delete&&canManage()){const p=state.profiles.find(p=>p.id===button.dataset.delete);if(!await confirmAction(()=>t('Удалить профиль «{0}»? Xray будет перезапущен, текущие соединения прервутся.',p.name),'Удалить'))return;button.disabled=true;try{await api('/api/profiles/delete',{id:p.id,revision:state.revision});await refresh();}catch(e){notice(e.message);}finally{button.disabled=false;}}});
 $('loginForm').addEventListener('submit',event=>{event.preventDefault();window.Management.login(event);});
 $('logout').onclick=async()=>{try{await api('/api/logout',{});showLogin();}catch(e){notice(e.message);}};
 $('addProfile').onclick=()=>editProfile(null);$('closeDialog').onclick=()=>$('profileDialog').close();
 $('resetProfileChecks').onclick=async()=>{if(!canManage())return;const button=$('resetProfileChecks');button.disabled=true;try{await api('/api/profiles/reset-checks',{});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}};
 $('profileForm').addEventListener('submit',async e=>{
- e.preventDefault();if(!canManage())return;const b=e.submitter;b.disabled=true;message('profileError','');
+ e.preventDefault();if(!canManage()||e.submitter.disabled)return;const b=e.submitter;b.disabled=true;message('profileError','');
  try{
-  const source=e.target.elements.uri.value.trim();
-  if(/^https?:\/\//i.test(source)&&profileImport?.source!==source){await loadProfileSubscription();return;}
-  const data=Object.fromEntries(new FormData(e.target));data.enabled=e.target.elements.enabled.checked;data.priority=Number(data.priority);data.revision=editRevision;if(editing)data.id=editing;
-  if(profileImport&&profileImport.source===source){
-   if(!profileImport.selected.size)throw new Error(t('Выберите хотя бы один профиль подписки.'));
-   data.subscription_token=profileImport.token;data.subscription_profiles=[...profileImport.selected];delete data.subscriptionChoice;
-  }
+  const data=profilePayload(e.target);
+  if(/^https?:\/\//i.test(data.uri.trim())){await loadProfileSubscription(data);return;}
   if(!await confirmAction('Применить профили и перезапустить Xray?','Применить'))return;
   message('profileError','Применение…');await api('/api/profiles/'+(editing?'edit':'add'),data);$('profileDialog').close();await refresh();
  }catch(error){message('profileError',error.message);}finally{b.disabled=false;}

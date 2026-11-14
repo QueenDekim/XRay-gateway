@@ -1,9 +1,9 @@
 # VLESS transports and security
 
 Import a `vless://` URI or an HTTP/HTTPS subscription containing plain or Base64
-VLESS links. Use Load subscription in the profile form to review its entries.
-Select several entries to add profiles together, or one entry to replace an
-existing profile. The panel validates the resulting configuration with the
+VLESS links. Click Save and apply to download the subscription and open its selection dialog.
+Use the checkboxes, names and priorities to choose what to import. Select one
+entry when replacing an existing profile. The panel validates the resulting configuration with the
 bundled Xray `26.10.21` before applying it.
 
 ## Transports

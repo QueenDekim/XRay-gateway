@@ -81,6 +81,11 @@ def atomic_json(path, value):
     tmp.replace(path)
 
 
+def profile_node_id(node):
+    value={key:item for key,item in node.items() if key!='tag'}
+    return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+
+
 def profile_sources(source):
     """Parse each distinct VLESS node; never retain a subscription URL."""
     direct=source.lower().startswith('vless://')
@@ -101,7 +106,7 @@ def profile_sources(source):
         except (ValueError,TypeError):
             if direct:raise ValueError('Некорректная VLESS-ссылка. Проверьте транспорт, защиту и параметры подключения.') from None
             skipped+=1;continue
-        identifier=hashlib.sha256(json.dumps(node,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+        identifier=profile_node_id(node)
         if identifier in seen:continue
         seen.add(identifier)
         endpoint=node['settings']['vnext'][0]
@@ -110,6 +115,14 @@ def profile_sources(source):
         if len(entries)>100:raise ValueError('В подписке больше 100 профилей. Сократите список.')
     if not entries:raise ValueError('В подписке нет поддерживаемого профиля VLESS.')
     return entries,skipped
+
+
+def subscription_group(source):
+    parsed=urlsplit(source)
+    if parsed.scheme.lower() not in ('http','https'):return None
+    canonical=parsed._replace(scheme=parsed.scheme.lower(),netloc=parsed.netloc.lower(),fragment='').geturl()
+    return {'id':'sub_'+hashlib.sha256(canonical.encode()).hexdigest()[:24],
+            'name':(parsed.hostname or 'Subscription')[:80]}
 
 
 def resolve_profile_source(source,preferred_network=None,preferred_security=None):
@@ -323,7 +336,7 @@ class Controller:
         else:
             candidate.unlink(missing_ok=True)
 
-    def change(self, action, data, identifier=None, source_profiles=None):
+    def change(self, action, data, identifier=None, source_profiles=None, source_group=None):
         try:
             revision=int(data.get('revision', -1))
         except (ValueError,TypeError):
@@ -337,7 +350,7 @@ class Controller:
                 raise ValueError('Профиль не найден.')
             if action != 'delete':
                 name = str(data.get('name', '')).strip()
-                if not (action=='add' and source_profiles and len(source_profiles)>1) and not 1 <= len(name) <= 80:
+                if not (source_profiles and (len(source_profiles)>1 or all(p.get('customized') for p in source_profiles))) and not 1 <= len(name) <= 80:
                     raise ValueError('Название должно содержать от 1 до 80 символов.')
                 try:
                     priority = int(data.get('priority', 10))
@@ -350,6 +363,7 @@ class Controller:
         if action != 'delete':
             if source_profiles is None:
                 source_profiles=profile_sources(uri)[0] if uri else [{'node':copy.deepcopy(current['node'])}] if current else []
+                if uri and not source_group:source_group=subscription_group(uri)
                 if len(source_profiles)>1:
                     raise ValueError('В подписке несколько профилей. Загрузите подписку и выберите нужные.')
             if not source_profiles:
@@ -360,18 +374,32 @@ class Controller:
             if revision != self.revision:
                 raise ValueError('Список уже изменился. Обновите страницу и повторите действие.')
             if action != 'delete':
+                if source_group:
+                    for profile in profiles:
+                        if profile.get('subscription',{}).get('id')==source_group['id']:
+                            profile['subscription']['name']=source_group['name']
                 if current is None:
                     used = {p['slot'] for p in profiles}
                     # Slots are never reused: old conntrack marks must not select a different profile.
                     slot = int(self.load('next_slot', max(used | {3}) + 1))
-                    if slot+len(source_profiles)-1 > 100:
-                        raise ValueError('Достигнут предел слотов профилей (100).')
-                    for offset,entry in enumerate(source_profiles):
-                        profiles.append({'id':'p_'+uuid.uuid4().hex[:12],'slot':slot+offset,
-                            'name':entry['name'] if len(source_profiles)>1 else name,
-                            'priority':priority,'enabled':data.get('enabled',True),'node':copy.deepcopy(entry['node'])})
+                    for entry in source_profiles:
+                        existing=next((p for p in profiles if source_group and
+                            p.get('subscription',{}).get('id')==source_group['id'] and
+                            p.get('subscription',{}).get('node_id')==entry['id']),None)
+                        if existing is None and source_group:
+                            legacy=[p for p in profiles if not p.get('subscription') and profile_node_id(p['node'])==entry['id']]
+                            if len(legacy)==1:existing=legacy[0]
+                        if existing is None:
+                            if slot>100:raise ValueError('Достигнут предел слотов профилей (100).')
+                            existing={'id':'p_'+uuid.uuid4().hex[:12],'slot':slot};slot+=1;profiles.append(existing)
+                        existing.update(name=entry['name'] if entry.get('customized') or len(source_profiles)>1 else name,
+                            priority=entry.get('priority',priority),enabled=data.get('enabled',True),node=copy.deepcopy(entry['node']))
+                        if source_group:existing['subscription']=source_group|{'node_id':entry['id']}
                 else:
-                    current.update(name=name, priority=priority, enabled=data.get('enabled', True), node=copy.deepcopy(source_profiles[0]['node']))
+                    entry=source_profiles[0]
+                    current.update(name=entry['name'] if entry.get('customized') else name,
+                        priority=entry.get('priority',priority),enabled=data.get('enabled',True),node=copy.deepcopy(entry['node']))
+                    if source_group:current['subscription']=source_group|{'node_id':entry['id']}
             else:
                 profiles.remove(current)
             candidate = self.validate(profiles)
@@ -451,6 +479,7 @@ class Controller:
                 'address': server.get('address', ''), 'port': server.get('port', ''),
                 'transport': node.get('streamSettings', {}).get('network', ''),
                 'security': node.get('streamSettings', {}).get('security', 'none'),
+                'subscription':{k:p['subscription'][k] for k in ('id','name')} if p.get('subscription') else None,
                 'stats': copy.deepcopy(self.stats.get(p['id'], {})), 'health': self.health.get(p['id'])})
         return result
 

@@ -328,9 +328,14 @@
   "Выберите хотя бы один профиль подписки.": "Select at least one subscription profile.",
   "Выбор подписки устарел. Загрузите подписку повторно.": "The subscription selection has expired. Load the subscription again.",
   "Для замены выберите один профиль подписки.": "Select one subscription profile to replace the current profile.",
-  "Загрузить подписку": "Load subscription",
   "Загрузка подписки…": "Loading subscription…",
   "Применить профили и перезапустить Xray?": "Apply the profiles and restart Xray?",
   "Пропущено неподдерживаемых профилей: {0}": "Unsupported profiles skipped: {0}",
-  "Профили подписки": "Subscription profiles"
+  "Профили подписки": "Subscription profiles",
+  "Название подписки": "Subscription name",
+  "Название профиля": "Profile name",
+  "Подписка": "Subscription",
+  "Выбрать профиль «{0}»": "Select profile “{0}”",
+  "Отдельные профили": "Standalone profiles",
+  "Некорректные параметры профилей подписки.": "Invalid subscription profile options."
 }

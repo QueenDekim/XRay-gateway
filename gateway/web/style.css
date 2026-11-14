@@ -195,14 +195,6 @@ dialog .primary { width: 100%; }
 .checkbox input { width: auto; accent-color: var(--accent); }
 dialog textarea { font: 12px/1.7 Consolas, "Liberation Mono", monospace; }
 
-.subscription-profiles { min-width: 0; padding: 0; margin: 24px 0; border: 0; }
-.subscription-profiles legend { padding: 0; margin-bottom: 12px; font-size: 13px; color: var(--secondary); }
-.subscription-options { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); }
-.subscription-option { gap: 12px; min-height: 48px; padding: 12px 0; margin: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
-.subscription-option > span { min-width: 0; }
-.subscription-option b { color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
-.subscription-option small { display: block; margin-top: 4px; font-size: 12px; overflow-wrap: anywhere; }
-.subscription-option input { flex-shrink: 0; }
 
 @media (max-width: 1200px) {
   .metrics article { padding: 20px 16px; }
@@ -922,4 +914,20 @@ main { min-height: calc(100vh - 64px); }
  .confirmation-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
  :root[data-design] .confirmation-actions > button.primary, :root[data-design] .confirmation-actions > button.secondary { width: 100%; min-width: 0; padding-left: 12px; padding-right: 12px; }
  .operation-row { gap: 8px; }
+}
+
+/* Subscription selection and shared profile groups. */
+#subscriptionDialog { width: min(860px,94vw); }
+#subscriptionOptions { max-height: min(52vh,420px); overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); }
+.subscription-option { display: grid; grid-template-columns: 44px minmax(0,1fr) 88px; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+#subscriptionOptions .subscription-choice { margin: 0; min-height: 44px; align-items: center; justify-content: center; cursor: pointer; }
+#subscriptionOptions .subscription-check { width: 16px; height: 16px; padding: 0; accent-color: var(--accent); }
+.subscription-identity { min-width: 0; }
+.subscription-identity input { min-width: 0; }
+.subscription-identity small { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+#subscriptionOptions .subscription-priority { margin: 0; gap: 8px; }
+:root[data-design] .profile-group-heading, :root[data-design] .profile-group-row th { padding: 12px 16px; margin: 0; background: var(--raised); color: var(--secondary); font-size: 14px; font-weight: 500; line-height: 1.4; letter-spacing: 0; text-transform: none; overflow-wrap: anywhere; border-bottom: 1px solid var(--line); }
+@media (max-width: 600px) {
+ .subscription-option { grid-template-columns: 44px minmax(0,1fr); }
+ .subscription-priority { grid-column: 2; width: 104px; }
 }

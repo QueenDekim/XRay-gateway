@@ -10,7 +10,7 @@ import io
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
-from controller import routeros, profile_sources
+from controller import routeros, profile_sources, subscription_group, profile_node_id
 from accounts import Accounts
 from version import build_info
 from localization import translate_message
@@ -211,18 +211,29 @@ class Panel(http.server.BaseHTTPRequestHandler):
                         _,live=self.session()
                         if live is not session or live['user']['role']!='admin':
                             self.respond(401,{'error':'Требуется вход.'});return
-                        preview={'token':secrets.token_urlsafe(24),'source':source,'expires':time.time()+300,'profiles':entries}
+                        group=subscription_group(source)
+                        saved_profiles=self.controller.list_profiles()
+                        existing={p.get('subscription',{}).get('node_id'):p for p in saved_profiles
+                            if group and p.get('subscription',{}).get('id')==group['id']}
+                        if existing:group['name']=next(iter(existing.values()))['subscription']['name']
+                        if group:
+                            for entry in entries:
+                                legacy=[p for p in saved_profiles if not p.get('subscription') and profile_node_id(p['node'])==entry['id']]
+                                if entry['id'] not in existing and len(legacy)==1:existing[entry['id']]=legacy[0]
+
+                        preview={'token':secrets.token_urlsafe(24),'source':source,'expires':time.time()+300,'profiles':entries,'group':group}
                         session['subscription_preview']=preview
                     public=[]
                     for entry in entries:
                         node=entry['node'];endpoint=node['settings']['vnext'][0];stream=node['streamSettings']
-                        public.append({key:entry[key] for key in ('id','name')}|{'address':endpoint['address'],
+                        saved=existing.get(entry['id'])
+                        public.append({key:entry[key] for key in ('id','name')}|({'name':saved['name'],'priority':saved['priority']} if saved else {})|{'address':endpoint['address'],
                             'port':endpoint['port'],'transport':stream['network'],'security':stream['security']})
-                    self.respond(200,{'token':preview['token'],'profiles':public,'skipped':skipped})
+                    self.respond(200,{'token':preview['token'],'profiles':public,'skipped':skipped,'group':group})
                 except ValueError as exc:self.respond(400,{'error':str(exc)})
             elif path in ('/api/profiles/add', '/api/profiles/edit', '/api/profiles/delete'):
                 try:
-                    prepared=None
+                    prepared=None;group=None
                     if data.get('subscription_token'):
                         with self.controller.lock:
                             preview=session.get('subscription_preview',{})
@@ -236,8 +247,28 @@ class Panel(http.server.BaseHTTPRequestHandler):
                             entries={entry['id']:entry for entry in preview['profiles']}
                             if any(value not in entries for value in selected):
                                 raise ValueError('Выбор подписки устарел. Загрузите подписку повторно.')
-                            prepared=[entries[value] for value in selected]
-                    self.controller.change(path.rsplit('/', 1)[1], data, str(data.get('id', '')),source_profiles=prepared)
+                            options=data.get('subscription_options',{})
+                            if not isinstance(options,dict) or any(key not in selected for key in options):
+                                raise ValueError('Некорректные параметры профилей подписки.')
+                            prepared=[]
+                            for value in selected:
+                                entry=entries[value].copy()
+                                if value in options:
+                                    option=options[value]
+                                    if not isinstance(option,dict) or not isinstance(option.get('name'),str) or not 1<=len(option['name'].strip())<=80:
+                                        raise ValueError('Название должно содержать от 1 до 80 символов.')
+                                    priority=option.get('priority')
+                                    if isinstance(priority,bool) or not isinstance(priority,int) or not 1<=priority<=1000:
+                                        raise ValueError('Некорректные приоритет или состояние профиля.')
+                                    entry.update(name=option['name'].strip(),priority=priority,customized=True)
+                                prepared.append(entry)
+                            if preview['group']:
+                                group=preview['group'].copy()
+                                label=data.get('subscription_name',group['name'])
+                                if not isinstance(label,str) or not 1<=len(label.strip())<=80:
+                                    raise ValueError('Название должно содержать от 1 до 80 символов.')
+                                group['name']=label.strip()
+                    self.controller.change(path.rsplit('/', 1)[1], data, str(data.get('id', '')),source_profiles=prepared,source_group=group)
                     if prepared is not None and session.get('subscription_preview',{}).get('token')==data.get('subscription_token'):
                         session.pop('subscription_preview',None)
                 except ValueError as exc:

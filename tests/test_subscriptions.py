@@ -114,6 +114,85 @@ class SubscriptionTests(unittest.TestCase):
         self.assertEqual(status,400);self.assertIn('несколько профилей',result['error'])
         self.assertEqual(self.c.list_profiles(),[])
 
+    def test_single_node_url_import_without_preview_still_has_group(self):
+        with patch('controller.fetch_subscription',return_value=FIRST.encode()):
+            status,_,_=self.request('/api/profiles/add',{'name':'Single','uri':URL,'priority':4,'enabled':True,'revision':self.c.revision})
+        self.assertEqual(status,200)
+        self.assertEqual(self.c.public_profiles()[0]['subscription']['name'],'example.org')
+        self.assertNotIn(URL,json.dumps(self.c.load('profiles',[])))
+
+    def test_custom_names_priorities_grouping_and_public_metadata(self):
+        preview=self.preview();data=self.selection(preview);first,second=[p['id'] for p in preview['profiles']]
+        data.update(name='',subscription_name='My group',subscription_options={first:{'name':'Renamed first','priority':45},second:{'name':'Renamed second','priority':2}})
+        self.assertEqual(self.request('/api/profiles/add',data)[0],200)
+        profiles=self.c.list_profiles()
+        self.assertEqual([(p['name'],p['priority']) for p in profiles],[('Renamed second',2),('Renamed first',45)])
+        groups=[p['subscription'] for p in profiles];self.assertEqual(groups[0]['id'],groups[1]['id'])
+        self.assertTrue(all(p['name']=='My group' for p in groups))
+        public=self.c.public_profiles();self.assertEqual(public[0]['subscription'],{'id':groups[0]['id'],'name':'My group'})
+        self.assertNotIn('node_id',json.dumps(public));self.assertNotIn('private-token',json.dumps(public))
+        reopened=type(self.c)(self.c.directory)
+        try:self.assertEqual(reopened.public_profiles()[0]['subscription'],public[0]['subscription'])
+        finally:reopened.db.close()
+
+    def test_reimport_updates_group_members_preserving_ids_counters_and_slots(self):
+        preview=self.preview();data=self.selection(preview)
+        self.assertEqual(self.request('/api/profiles/add',data)[0],200)
+        old={p['subscription']['node_id']:(p['id'],p['slot']) for p in self.c.list_profiles()}
+        self.c.stats={identifier:{'downlink':42,'checks':5} for identifier,_ in old.values()}
+        preview=self.preview();selected=preview['profiles'][0]['id'];data=self.selection(preview,[selected])
+        data.update(subscription_name='Renamed group',subscription_options={selected:{'name':'New name','priority':99}})
+        self.c.save('next_slot',101)
+        with patch.object(self.c,'restart') as restart:self.assertEqual(self.request('/api/profiles/add',data)[0],200)
+        restart.assert_called_once();profiles=self.c.list_profiles();self.assertEqual(len(profiles),2)
+        self.assertEqual({p['subscription']['node_id']:(p['id'],p['slot']) for p in profiles},old)
+        self.assertTrue(all(p['subscription']['name']=='Renamed group' for p in profiles))
+        self.assertTrue(all(self.c.stats[p['id']]=={'downlink':42,'checks':5} for p in profiles))
+        self.assertEqual(next(p for p in profiles if p['subscription']['node_id']==selected)['priority'],99)
+        preview=self.preview();selected_public=next(p for p in preview['profiles'] if p['id']==selected)
+        self.assertEqual((selected_public['name'],selected_public['priority']),('New name',99))
+        self.assertEqual(preview['group']['name'],'Renamed group')
+
+    def test_normal_edit_keeps_group_and_changes_only_own_priority(self):
+        preview=self.preview();self.assertEqual(self.request('/api/profiles/add',self.selection(preview))[0],200)
+        first,other=self.c.list_profiles();before=other.copy()
+        data={'id':first['id'],'name':'Individual edit','priority':1,'enabled':True,'uri':'','revision':self.c.revision}
+        self.assertEqual(self.request('/api/profiles/edit',data)[0],200)
+        edited=self.c.list_profiles()[0];self.assertEqual(edited['subscription'],first['subscription'])
+        self.assertEqual(edited['priority'],1);self.assertEqual(self.c.list_profiles()[1],before)
+
+    def test_invalid_per_node_values_do_not_partially_import(self):
+        preview=self.preview();selected=preview['profiles'][0]['id'];data=self.selection(preview,[selected])
+        bad=[{'name':'','priority':1},{'name':'x'*81,'priority':1},{'name':'  ','priority':1}]
+        bad += [{'name':'Valid','priority':value} for value in [True,0,1001,1.5,'10',None]]
+        for option in bad:
+            with self.subTest(option=option):
+                self.assertEqual(self.request('/api/profiles/add',data|{'subscription_options':{selected:option}})[0],400)
+        for options in [[],{'not-selected':{'name':'Unknown','priority':1}}]:
+            self.assertEqual(self.request('/api/profiles/add',data|{'subscription_options':options})[0],400)
+        self.assertEqual(self.request('/api/profiles/add',data|{'subscription_name':''})[0],400)
+        self.assertEqual(self.c.list_profiles(),[])
+
+    def test_reimport_attaches_unique_older_profile_without_duplicate(self):
+        self.c.change('add',{'name':'Older profile','priority':81,'enabled':True,'uri':FIRST,'revision':self.c.revision})
+        original=self.c.list_profiles()[0];preview=self.preview();entry=preview['profiles'][0]
+        self.assertEqual((entry['name'],entry['priority']),('Older profile',81))
+        data=self.selection(preview,[entry['id']]);data['subscription_options']={entry['id']:{'name':entry['name'],'priority':entry['priority']}}
+        self.assertEqual(self.request('/api/profiles/add',data)[0],200)
+        profiles=self.c.list_profiles();self.assertEqual(len(profiles),1)
+        self.assertEqual((profiles[0]['id'],profiles[0]['slot']),(original['id'],original['slot']))
+        self.assertEqual(profiles[0]['subscription']['id'],preview['group']['id'])
+
+    def test_other_subscription_has_independent_group_even_for_same_nodes(self):
+        preview=self.preview();self.assertEqual(self.request('/api/profiles/add',self.selection(preview))[0],200)
+        with patch('controller.fetch_subscription',return_value=(FIRST+'\n'+SECOND).encode()):
+            status,other,_=self.request('/api/profiles/preview',{'uri':URL+'-another'})
+        self.assertEqual(status,200);self.assertNotEqual(preview['group']['id'],other['group']['id'])
+        data=self.selection(other);data['uri']=URL+'-another'
+        self.assertEqual(self.request('/api/profiles/add',data)[0],200)
+        self.assertEqual(len(self.c.list_profiles()),4)
+        self.assertEqual(len({p['subscription']['id'] for p in self.c.list_profiles()}),2)
+
     def test_preview_requires_admin_csrf_and_live_session_without_locking_readers(self):
         def fetch(*args,**kwargs):
             import threading

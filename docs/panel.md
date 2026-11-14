@@ -6,19 +6,25 @@ Add VLESS profiles with TLS, REALITY or no transport encryption. Lower priority 
 enabled healthy profiles. Adding, editing or deleting a profile validates a new
 Xray configuration and restarts the core. Existing connections can close.
 
-Paste a VLESS URI or an HTTP/HTTPS subscription URL in the profile form.
-For subscriptions, click Load subscription, then select the profiles to import.
-When adding profiles, you can select several entries; each keeps its subscription
-name. For a single entry, you can edit the name before saving. To update an
-existing profile, select one replacement. The panel preserves its name, ID,
-priority and counters unless you change the editable fields.
+Paste a VLESS URI or an HTTP/HTTPS subscription URL in the profile form and
+click Save and apply. For a subscription, this opens a selection dialog after
+the download. Check the profiles you want, edit their names and priorities,
+then click Save and apply in the dialog. Cancel returns to the original form
+without applying changes. To replace an existing profile, select one entry.
+
+Profiles from the same subscription appear under a shared heading in Overview
+and Profiles. You can name the group in the selection dialog. Each profile has
+its own priority; grouping does not change route selection. Importing the same
+subscription again updates matching group members and keeps their IDs, slots
+and counters. Entries you leave unchecked stay as they are. A normal profile
+edit keeps its group membership.
 
 The panel reads plain and Base64 VLESS subscriptions, removes identical nodes
 and reports how many unsupported entries it skipped. It keeps the reviewed
 selection in your session for five minutes. Saving applies that selection in
-one configuration validation and core restart. Load the subscription again after
-five minutes or to fetch updated entries. The panel does not poll subscriptions
-or save their URLs to disk.
+one configuration validation and core restart. After the selection expires,
+close the dialog and click Save and apply again to download a fresh copy.
+The panel stores a group ID and name, not the subscription URL.
 
 Read [VLESS transports](vless.md) for supported transports, URL parameters and
 the combinations accepted by the bundled Xray core. Profile rows show both the
@@ -107,10 +113,16 @@ CSRF token to reset profile probe counts.
 
 Administrators can send `POST /api/profiles/preview` with `uri` to read a
 subscription. The response contains a session-bound `token`, a `profiles` array
-with IDs, names, endpoints, transports and security modes, and a `skipped` count.
+with IDs, names, endpoints, transports and security modes, a `skipped` count,
+and `group` metadata. Existing group members also include their saved name
+and priority.
 Submit the same `uri`, `subscription_token` and an array of selected profile IDs
 in `subscription_profiles` to `/api/profiles/add` or `/edit`, along with the normal
-profile fields and revision. Add accepts several selections; edit accepts one.
+profile fields and revision. Send `subscription_options` as an object keyed
+by selected profile ID, with `name` and integer `priority` (1 to 1000) for each
+entry. Use `subscription_name` for the group heading. Add accepts several
+selections; edit accepts one. Each reimport updates matching members by group
+and node ID; it leaves unselected members untouched.
 The token expires after five minutes, a successful save, or another preview in
 the same session. A multi-profile URL without a selection returns HTTP 400.
 

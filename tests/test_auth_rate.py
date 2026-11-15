@@ -98,6 +98,16 @@ class AuthenticationRateTests(unittest.TestCase):
         self.assertEqual(rate.peer('127.0.0.1', 'spoofed,198.51.100.7,10.0.0.2'), '198.51.100.7')
         self.assertEqual(rate.peer('192.0.2.4', '198.51.100.7'), '192.0.2.4')
 
+    def test_full_failure_history_can_be_reloaded_without_losing_lockouts(self):
+        from controller import atomic_json
+        now = time.time()
+        records = {str(index).zfill(64): {'failures': [now] * 4, 'updated': now,
+                   'level': 2, 'until': now + 300} for index in range(8192)}
+        atomic_json(self.root / 'auth-rate.json', records)
+        self.assertGreater((self.root / 'auth-rate.json').stat().st_size, 2_000_000)
+        loaded = AuthRate(self.root, self.c.lock)
+        self.assertEqual(loaded.records, records)
+
     def test_renamed_accounts_and_unknown_names_do_not_bypass_address_failures(self):
         for number in range(20):
             status = self.call('/auth/login', {'username': 'unknown-' + str(number), 'password': 'wrong'})[0]

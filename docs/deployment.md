@@ -95,8 +95,8 @@ does not rewrite stored RouterOS settings.
 After configuring the network and initial password, set this value in `.env`:
 
 ```dotenv
-GATEWAY_IMAGE=ghcr.io/queendekim/xray-gateway:2.0.0
-UPDATER_IMAGE=ghcr.io/queendekim/xray-gateway-updater:2.0.0
+GATEWAY_IMAGE=ghcr.io/queendekim/xray-gateway:2.0.1
+UPDATER_IMAGE=ghcr.io/queendekim/xray-gateway-updater:2.0.1
 XRAY_IMAGE=ghcr.io/xtls/xray-core:26.10.21
 ```
 

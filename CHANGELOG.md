@@ -1,6 +1,10 @@
 # Changelog
 
-## 2.0.0
+## 2.0.1
+
+- Preserve large authentication lockout histories across restarts.
+
+## [2.0.0](https://github.com/QueenDekim/XRay-gateway/tree/2.0.0-5ab9f60)
 
 - Remove password sign-in from the public API; use internal routes for the web form.
 - Add authentication quotas, persistent escalating lockouts and a sign-in countdown.

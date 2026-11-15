@@ -139,6 +139,12 @@
       "revision": "e7c1ad537b2163b58d58b49da5a15f5d40a3722d",
       "tag": "1.11.0-e7c1ad5",
       "summary": "Optional API tokens without expiration, retaining revocation and MFA confirmation."
+    },
+    {
+      "version": "2.0.0",
+      "revision": "5ab9f60381b24ce789b10fc73e8bb409ea77005c",
+      "tag": "2.0.0-5ab9f60",
+      "summary": "Bearer-only public API, escalating authentication lockouts and MFA-confirmed token management."
     }
   ]
 }

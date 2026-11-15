@@ -17,6 +17,8 @@ class AuthRateLimit(Exception):
 
 class AuthRate:
     DELAYS = (60, 300, 900, 3600, 86400)
+    # 8192 records can each hold up to 399 timestamps at the largest configured threshold.
+    MAX_STATE_BYTES = 128_000_000
 
     def __init__(self, directory, lock):
         self.path = directory / 'auth-rate.json'
@@ -24,7 +26,7 @@ class AuthRate:
         self.limit = self.setting('AUTH_FAILURE_LIMIT', 5, 2, 100)
         self.requests = {}
         try:
-            if self.path.stat().st_size > 2_000_000:raise ValueError('Oversized authentication state')
+            if self.path.stat().st_size > self.MAX_STATE_BYTES:raise ValueError('Oversized authentication state')
             self.records = json.loads(self.path.read_text())
             if not isinstance(self.records, dict) or len(self.records) > 8192:raise ValueError('Invalid authentication state')
         except FileNotFoundError:self.records = {}

@@ -58,7 +58,7 @@ class PageTests(unittest.TestCase):
         self.assertNotIn(token,raw);self.assertNotIn('csrf',raw)
         self.panel.handler.sessions=session_store.load(self.c)
         self.assertEqual(self.get('/profiles',self.headers)[0],200)
-        self.panel.request('/api/logout',{},self.headers)
+        self.panel.request('/auth/logout',{},self.headers)
         self.panel.handler.sessions=session_store.load(self.c)
         self.assertEqual(self.get('/profiles',self.headers)[0],303)
 
@@ -109,7 +109,7 @@ class UpdateTests(unittest.TestCase):
     def test_maintenance_blocks_mutations_but_allows_status_and_pages(self):
         from update_protocol import write_json
         write_json(self.control/'job.json',{'id':'1'*32,'status':'installing','tag':self.tag})
-        for path,data in [('/api/profiles/add',{}),('/api/login',{'username':'admin','password':'test-password'}),('/api/logout',{})]:
+        for path,data in [('/api/profiles/add',{}),('/auth/login',{'username':'admin','password':'test-password'}),('/auth/logout',{})]:
             self.assertEqual(self.panel.request(path,data,self.headers)[0],503)
         self.assertEqual(self.panel.request('/api/state',headers=self.headers)[0],200)
         self.assertEqual(self.panel.request('/api/updates',headers=self.headers)[0],200)

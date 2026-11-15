@@ -975,3 +975,12 @@ nav a, .account-controls a { text-decoration: none; }
  .token-row > button { grid-column: 2; min-height: 44px; }
  .token-expiry { grid-column: 1; grid-row: 2; text-align: left; }
 }
+
+#tokenCreateForm .form-pair { display: grid; grid-template-columns: minmax(0,1fr) 160px; align-items: start; }
+#tokenCreateForm .form-pair > label:first-child { width: auto; min-width: 0; }
+.token-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+@media (max-width: 700px) {
+ #tokenCreateForm .form-pair { grid-template-columns: minmax(0,1fr); }
+ #tokenDays { max-width: 160px; }
+ .token-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}

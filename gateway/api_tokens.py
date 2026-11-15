@@ -26,6 +26,19 @@ class ApiTokens:
             user = self.accounts.own(self.accounts.load(), actor)
             return [self.public(item, user) for item in user.get('api_tokens', [])]
 
+    def confirm(self, user, code):
+        if user.get('totp_secret') and not self.accounts.factor(user, str(code)):
+            raise ValueError('Неверный или использованный код 2FA.')
+
+    @staticmethod
+    def credential(user, name, expires):
+        identifier = secrets.token_hex(8)
+        value = 'xg_' + identifier + '.' + secrets.token_urlsafe(32)
+        item = {'id': identifier, 'name': name, 'prefix': 'xg_' + identifier,
+                'created_at': time.time(), 'expires_at': expires,
+                'revision': user['revision'], 'hash': hashlib.sha256(value.encode()).hexdigest()}
+        return value, item
+
     def create(self, actor, data):
         name = data.get('name', '')
         days = data.get('days', 90)
@@ -42,27 +55,40 @@ class ApiTokens:
             active = [item for item in user.get('api_tokens', []) if self.public(item, user)['active']]
             if len(active) >= 20:
                 raise ValueError('Максимум 20 действующих API-токенов.')
-            if user.get('totp_secret') and not self.accounts.factor(user, str(data.get('code', ''))):
-                raise ValueError('Неверный или использованный код 2FA.')
-            identifier = secrets.token_hex(8)
-            value = 'xg_' + identifier + '.' + secrets.token_urlsafe(32)
-            now = time.time()
-            item = {'id': identifier, 'name': name.strip(), 'prefix': 'xg_' + identifier,
-                    'created_at': now, 'expires_at': None if no_expiry else now + days * 86400,
-                    'revision': user['revision'], 'hash': hashlib.sha256(value.encode()).hexdigest()}
+            self.confirm(user, data.get('code', ''))
+            value, item = self.credential(user, name.strip(), None if no_expiry else time.time() + days * 86400)
             user['api_tokens'] = active + [item]
             atomic_json(self.accounts.path, stored)
             return {'token': value, 'item': self.public(item, user), 'user': public_user(user)}
 
-    def revoke(self, actor, identifier):
+    def reissue(self, actor, identifier, code=''):
+        with self.accounts.lock:
+            stored = self.accounts.load()
+            user = self.accounts.own(stored, actor)
+            items = user.get('api_tokens', [])
+            previous = next((item for item in items if item['id'] == identifier), None)
+            if previous is None:raise ValueError('API-токен не найден.')
+            if previous['expires_at'] is not None and previous['expires_at'] <= time.time():
+                raise ValueError('Срок действия токена истёк. Создайте новый токен.')
+            if sum(self.public(item, user)['active'] for item in items if item['id'] != identifier) >= 20:
+                raise ValueError('Максимум 20 действующих API-токенов.')
+            self.confirm(user, code)
+            value, replacement = self.credential(user, previous['name'], previous['expires_at'])
+            user['api_tokens'] = [replacement if item['id'] == identifier else item for item in items]
+            atomic_json(self.accounts.path, stored)
+            return {'token': value, 'item': self.public(replacement, user), 'user': public_user(user)}
+
+    def revoke(self, actor, identifier, code=''):
         with self.accounts.lock:
             stored = self.accounts.load()
             user = self.accounts.own(stored, actor)
             items = user.get('api_tokens', [])
             if not any(item['id'] == identifier for item in items):
                 raise ValueError('API-токен не найден.')
+            self.confirm(user, code)
             user['api_tokens'] = [item for item in items if item['id'] != identifier]
             atomic_json(self.accounts.path, stored)
+            return {'ok': True, 'user': public_user(user)}
 
     def authenticate(self, value):
         match = TOKEN.fullmatch(value)

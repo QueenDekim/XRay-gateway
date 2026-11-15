@@ -281,7 +281,7 @@ context.navigator = { clipboard:{ async writeText(value) { assert.equal(value, '
 await nodes.copyRouter.onclick();
 assert.ok(nodes.copyStatus.textContent.includes(ipv6Warning));
 context.fetch = async (url, options) => {
-  assert.equal(url, '/api/logout');assert.equal(options.method, 'POST');
+  assert.equal(url, '/auth/logout');assert.equal(options.method, 'POST');
   return { ok: true, json: async () => ({ ok: true }) };
 };
 await nodes.logout.onclick();
@@ -418,7 +418,7 @@ context.mockRefresh=async()=>{refreshes++;};
 context.mockAPI=async(url,data)=>{
  calls.push({url,data});
  if(url==='/api/routeros/config')return routerConfig;
- if(url.startsWith('/api/login')){if(loginResponse instanceof Error)throw loginResponse;return loginResponse;}
+ if(url.startsWith('/auth/login')){if(loginResponse instanceof Error)throw loginResponse;return loginResponse;}
  if(url==='/api/routeros/apply'||url==='/api/ip-lists/delete')return{id:'job-test'};
  if(url.startsWith('/api/routeros/jobs/'))return{id:'job-test',name:'Test list',status:'done',logs:['Applied'],cursor:1};
  if(url==='/api/routeros/jobs')return{jobs:[]};

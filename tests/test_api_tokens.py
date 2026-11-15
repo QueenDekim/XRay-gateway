@@ -84,7 +84,7 @@ class ApiTokenTests(unittest.TestCase):
         self.assertEqual(self.request('/profiles', headers=bearer)[0], 303)
         self.assertEqual(self.request('/api/ip-lists/add', {'name': 'Forbidden', 'addresses': '1.1.1.1'}, bearer)[0], 403)
         self.assertEqual(self.request('/api/account/tokens', headers=bearer)[0], 403)
-        for path in ['/api/account/tokens/create', '/api/account/tokens/revoke', '/api/logout']:
+        for path in ['/api/account/tokens/create', '/api/account/tokens/revoke', '/api/account/tokens/reissue']:
             self.assertEqual(self.request(path, {'name': 'Forbidden', 'id': token['item']['id']}, bearer)[0], 403)
         self.assertEqual(self.request('/api/account/tokens/revoke', {'id': token['item']['id']}, browser)[0], 400)
         self.assertEqual(self.request('/api/state', headers=bearer)[0], 200)
@@ -116,7 +116,8 @@ class ApiTokenTests(unittest.TestCase):
         self.assertEqual(created['user']['recovery_remaining'], 9)
         self.assertEqual(self.request('/api/account/tokens/create', {'name': 'Replay', 'code': enabled['recovery_codes'][0]}, browser)[0], 400)
         self.assertEqual(len(self.tokens.list(created['user'])), 1)
-        self.assertEqual(self.request('/api/account/tokens/create', {'name': 'Rate limit', 'code': enabled['recovery_codes'][1]}, browser)[0], 429)
+        self.assertEqual(self.request('/api/account/tokens/revoke', {'id': created['item']['id'], 'code': 'invalid'}, browser)[0], 429)
+        self.assertEqual(self.request('/api/account/tokens/revoke', {'id': created['item']['id'], 'code': enabled['recovery_codes'][1]}, browser)[0], 429)
 
     def test_fresh_totp_allows_issue_once_and_account_revision_invalidates_old_tokens(self):
         browser = self.initialize()
@@ -166,3 +167,44 @@ class ApiTokenTests(unittest.TestCase):
             self.assertIsNone(items[0]['expires_at'])
         self.assertEqual(self.request('/api/account/tokens/revoke', {'id': created['item']['id']}, browser)[0], 200)
         self.assertEqual(self.request('/api/state', headers=bearer)[0], 401)
+
+    def test_reissue_keeps_name_and_exact_expiry_and_replaces_only_selected_credential(self):
+        browser = self.initialize()
+        other = self.issue(browser, name='Other')
+        for permanent in [False, True]:
+            original = self.issue(browser, name='Preserved name', no_expiry=permanent)
+            status, replacement, _ = self.request('/api/account/tokens/reissue', {'id': original['item']['id']}, browser)
+            self.assertEqual(status, 201)
+            self.assertEqual(replacement['item']['name'], original['item']['name'])
+            self.assertEqual(replacement['item']['expires_at'], original['item']['expires_at'])
+            self.assertNotEqual(replacement['token'], original['token'])
+            self.assertNotEqual(replacement['item']['id'], original['item']['id'])
+            self.assertEqual(self.request('/api/state', headers={'Authorization': 'Bearer ' + original['token']})[0], 401)
+            self.assertEqual(self.request('/api/state', headers={'Authorization': 'Bearer ' + replacement['token']})[0], 200)
+        self.assertEqual(self.request('/api/state', headers={'Authorization': 'Bearer ' + other['token']})[0], 200)
+
+    def test_reissue_and_revocation_require_fresh_mfa_and_leave_token_usable_on_failure(self):
+        browser = self.initialize()
+        _, setup, _ = self.request('/api/account/2fa/setup', {'password': 'test-password'}, browser)
+        _, enabled, _ = self.request('/api/account/2fa/enable', {'code': totp(setup['secret'], int(time.time() // 30))}, browser)
+        original = self.issue(browser, code=enabled['recovery_codes'][0])
+        for code in ['', 'invalid']:
+            self.assertEqual(self.request('/api/account/tokens/reissue', {'id': original['item']['id'], 'code': code}, browser)[0], 400)
+            self.assertIsNotNone(self.tokens.authenticate(original['token']))
+        status, replacement, _ = self.request('/api/account/tokens/reissue', {'id': original['item']['id'], 'code': enabled['recovery_codes'][1]}, browser)
+        self.assertEqual(status, 201)
+        self.assertIsNone(self.tokens.authenticate(original['token']))
+        for code in ['', enabled['recovery_codes'][1]]:
+            self.assertEqual(self.request('/api/account/tokens/revoke', {'id': replacement['item']['id'], 'code': code}, browser)[0], 400)
+            self.assertIsNotNone(self.tokens.authenticate(replacement['token']))
+        status, result, _ = self.request('/api/account/tokens/revoke', {'id': replacement['item']['id'], 'code': enabled['recovery_codes'][2]}, browser)
+        self.assertEqual(status, 200)
+        self.assertEqual(result['user']['recovery_remaining'], 7)
+        self.assertIsNone(self.tokens.authenticate(replacement['token']))
+
+    def test_reissue_does_not_extend_an_expired_token(self):
+        browser = self.initialize()
+        original = self.issue(browser, days=1)
+        with patch('api_tokens.time.time', return_value=time.time() + 2 * 86400):
+            with self.assertRaisesRegex(ValueError, 'истёк'):
+                self.tokens.reissue(original['user'], original['item']['id'])

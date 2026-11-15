@@ -60,3 +60,24 @@ starts disabled. The panel saves these choices in SQLite.
 Compose sets `UPDATE_CONTROL_DIR=/run/xray-updates` and mounts the shared control
 volume there. Only the updater service mounts the Docker socket. See
 [Updates](updates.md) for permissions and deployment requirements.
+
+## Authentication limits and reverse proxies
+
+`AUTH_FAILURE_LIMIT` sets the failure threshold, from 2 to 100; the default is 5.
+Passwords and sign-in codes share the account counter. Repeated failure groups
+within 15 minutes produce lockouts of 1, 5, 15 and 60 minutes, then 24 hours.
+After 24 hours without a failure, the backoff resets. The service stores hashed
+counter keys in `config/runtime/auth-rate.json` with private permissions.
+
+`AUTH_REQUESTS_PER_MINUTE` sets the per-address sign-in quota, from 5 to 1000;
+the default is 30. Authenticated security operations use this quota per user.
+`API_AUTH_REQUESTS_PER_MINUTE` sets the Bearer quota per address, from 10 to
+10000; the default is 300. Invalid Bearer tokens have their own failure counter.
+HTTP 429 includes `Retry-After` and `retry_after` in seconds.
+
+Behind a reverse proxy, set `TRUSTED_PROXY_NETWORKS` to its IP addresses or
+CIDRs, separated by commas. Trust only the proxy addresses, for example
+`172.20.0.5/32`. The service reads `X-Forwarded-For` from right to left while
+hops remain trusted, then uses the first untrusted address. It ignores forwarded
+headers from other peers. With no trusted proxies configured, clients behind
+the same proxy share its address quota.

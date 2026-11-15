@@ -181,6 +181,8 @@ if __name__ == '__main__':
     if controller.load('stats_since', None) is None:
         controller.save('stats_since', time.time())
     configure()
+    from auth_rate import AuthRate
+    controller.auth_rate=AuthRate(controller.directory,controller.lock)
     controller.updates=Updates(controller)
     threading.Thread(target=controller.updates.run,daemon=True).start()
     Panel.sessions=session_store.load(controller)

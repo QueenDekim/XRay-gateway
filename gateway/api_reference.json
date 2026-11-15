@@ -56,71 +56,24 @@
     {
       "slug": "authentication",
       "title": {
-        "ru": "Вход и сессии",
-        "en": "Authentication and sessions"
+        "ru": "Авторизация Bearer",
+        "en": "Bearer authentication"
       },
       "paragraphs": [
         {
-          "ru": "Для интеграций используйте API-токены. Следующие методы обслуживают вход и выход веб-панели; сессионные POST-запросы требуют X-CSRF-Token из GET /api/state.",
-          "en": "Use API tokens for integrations. The following methods handle web panel sign-in and sign-out. Session-based POST requests require X-CSRF-Token from GET /api/state."
+          "ru": "Создайте API-токен через своё имя → API и передавайте Authorization: Bearer <token> в каждом запросе. Cookie и CSRF для Bearer-запросов не требуются. Используйте HTTPS.",
+          "en": "Create an API token under your name → API and send Authorization: Bearer <token> on each request. Bearer requests need no cookie or CSRF token. Use HTTPS."
         },
         {
-          "ru": "Сессия действует 12 часов. Панель хранит сессии зашифрованными и проверяет ревизию учётной записи при каждом обращении. Смена пароля и прав отзывает старые сессии.",
-          "en": "Sessions last 12 hours. The panel stores sessions encrypted and checks the account revision on each request. Password or role changes revoke earlier sessions."
+          "ru": "API не принимает логин и пароль для входа. Не передавайте токен в URL. GET /api/version доступен без авторизации. Для интеграций используйте Bearer; управление токенами выполняйте после входа в веб-панель.",
+          "en": "The API does not accept a username and password for sign-in. Keep tokens out of URLs. GET /api/version is public. Use Bearer for integrations and sign in to the web panel to manage tokens."
         },
         {
-          "ru": "Если у пользователя включена 2FA, первый запрос возвращает challenge без cookie. Передайте challenge и code во второй запрос. Незавершённый вход истекает через три минуты.",
-          "en": "With 2FA enabled, the first request returns a challenge without a cookie. Submit challenge and code in the second request. An unfinished login expires after three minutes."
+          "ru": "По умолчанию допускается 300 проверяемых Bearer-запросов в минуту с одного адреса. После пяти неверных токенов за 15 минут действуют блокировки на 1, 5, 15, 60 минут, затем сутки. HTTP 429 содержит retry_after и заголовок Retry-After в секундах. Не повторяйте запрос до истечения этого срока.",
+          "en": "The default quota is 300 Bearer authorization attempts per minute per address. Five invalid tokens within 15 minutes trigger lockouts of 1, 5, 15 and 60 minutes, then 24 hours. HTTP 429 includes retry_after and the Retry-After header in seconds. Wait that long before retrying."
         }
       ],
-      "endpoints": [
-        {
-          "method": "POST",
-          "path": "/api/login",
-          "role": "public",
-          "description": {
-            "ru": "Проверка логина и пароля. При успехе без 2FA устанавливает cookie.",
-            "en": "Verify username and password. Sets the cookie on success without 2FA."
-          },
-          "request": {
-            "username": "admin",
-            "password": "example-password"
-          },
-          "response": {
-            "requires_2fa": true,
-            "challenge": "temporary-challenge"
-          }
-        },
-        {
-          "method": "POST",
-          "path": "/api/login/2fa",
-          "role": "public",
-          "description": {
-            "ru": "Завершает вход по одноразовому коду или коду восстановления.",
-            "en": "Complete login with a TOTP or recovery code."
-          },
-          "request": {
-            "challenge": "temporary-challenge",
-            "code": "123456"
-          },
-          "response": {
-            "ok": true
-          }
-        },
-        {
-          "method": "POST",
-          "path": "/api/logout",
-          "role": "user",
-          "description": {
-            "ru": "Отзывает текущую сессию и закрывает её терминал RouterOS.",
-            "en": "Revoke the current session and close its RouterOS terminal."
-          },
-          "request": {},
-          "response": {
-            "ok": true
-          }
-        }
-      ]
+      "endpoints": []
     },
     {
       "slug": "tokens",
@@ -130,8 +83,8 @@
       },
       "paragraphs": [
         {
-          "ru": "Откройте своё имя → API. Укажите название и срок действия от 1 до 365 дней или включите «Без окончания». При включённой 2FA подтвердите каждый выпуск кодом аутентификатора или резервным кодом. Панель показывает полный токен один раз; на диске хранится SHA-256 хеш.",
-          "en": "Open your name → API. Enter a name and a lifetime from 1 to 365 days, or select No expiry. With 2FA enabled, confirm each token with an authenticator or recovery code. Copy the full token when it appears; the panel stores its SHA-256 hash and does not display it again."
+          "ru": "Откройте своё имя → API. Укажите название и срок действия от 1 до 365 дней или включите «Без окончания». При включённой 2FA подтвердите выпуск, перевыпуск и отзыв кодом аутентификатора или резервным кодом. Панель показывает полный токен один раз; на диске хранится SHA-256 хеш.",
+          "en": "Open your name → API. Enter a name and a lifetime from 1 to 365 days, or select No expiry. With 2FA enabled, confirm creation, reissue and revocation with an authenticator or recovery code. Copy the full token when it appears; the panel stores its SHA-256 hash and does not display it again."
         },
         {
           "ru": "Используйте Authorization: Bearer <token>. Токен имеет права владельца: обычный пользователь не может менять профили, IP-списки и RouterOS. Отзыв, истечение срока, удаление пользователя, смена пароля, прав или состояния 2FA прекращают доступ по токену.",
@@ -140,6 +93,10 @@
         {
           "ru": "Можно иметь до 20 действующих токенов. Выпуск, просмотр списка и отзыв требуют сессию панели и CSRF для POST. Bearer-токен не даёт доступ к этим операциям или HTML-страницам. На защищённых API-маршрутах неверный Authorization возвращает 401 даже при наличии действующей cookie.",
           "en": "You can keep up to 20 active tokens. Creating, listing and revoking tokens requires a panel session, plus CSRF for POST. Bearer credentials do not authorize those operations or HTML pages. On protected API routes, an invalid Authorization header returns 401 even when a valid cookie is present."
+        },
+        {
+          "ru": "Перевыпуск заменяет секрет, сохраняя имя и точную дату окончания, включая отсутствие срока. Старый токен сразу перестаёт работать. Истёкший токен нужно создать заново. Секрет нового токена показывается один раз.",
+          "en": "Reissue replaces the credential while preserving its name and exact expiration date, including no expiry. The old token stops working. Create a new token if the previous one has expired. Copy the replacement secret when it appears; the panel shows it once."
         }
       ],
       "endpoints": [
@@ -157,8 +114,8 @@
           "path": "/api/account/tokens/create",
           "role": "user (panel session)",
           "description": {
-            "ru": "Создаёт токен и возвращает 201 с полным token, метаданными item и обновлённым user. name обязателен; days по умолчанию 90. no_expiry: true создаёт токен без окончания и отменяет days; expires_at будет null. no_expiry принимает только логическое значение и по умолчанию false. При включённой 2FA обязателен code. Повторно использованный код отклоняется. Ограничение: пять операций безопасности за минуту на пользователя.",
-            "en": "Create a token and return 201 with the full token, item metadata and refreshed user. Require name; days defaults to 90. Set no_expiry to true to omit the expiration date; this overrides days and returns expires_at: null. no_expiry must be a boolean and defaults to false. Require code when 2FA is enabled and reject reused codes. Limit security operations to five per user per minute."
+            "ru": "Создаёт токен и возвращает 201 с полным token, метаданными item и обновлённым user. name обязателен; days по умолчанию 90. no_expiry: true создаёт токен без окончания и отменяет days; expires_at будет null. no_expiry принимает только логическое значение и по умолчанию false. При включённой 2FA обязателен code. Повторно использованный код отклоняется. Пять неудачных операций безопасности за 15 минут блокируют следующие попытки с нарастающей задержкой. Максимум 30 запросов безопасности в минуту на пользователя.",
+            "en": "Create a token and return 201 with the full token, item metadata and refreshed user. Require name; days defaults to 90. Set no_expiry to true to omit the expiration date; this overrides days and returns expires_at: null. no_expiry must be a boolean and defaults to false. Require code when 2FA is enabled and reject reused codes. Five failed security operations within 15 minutes trigger an escalating lockout. Allow at most 30 security requests per minute per user."
           },
           "request": {
             "name": "Monitoring",
@@ -172,14 +129,33 @@
           "path": "/api/account/tokens/revoke",
           "role": "user (panel session)",
           "description": {
-            "ru": "Отзывает собственный токен по id. Следующие запросы с ним возвращают 401. Отзыв закрывает связанные терминалы RouterOS.",
-            "en": "Revoke one of your tokens by ID. Subsequent requests using it return 401. Revocation closes its RouterOS terminals."
+            "ru": "Отзывает собственный токен по id. Следующие запросы с ним возвращают 401. Отзыв закрывает связанные терминалы RouterOS. При включённой 2FA требуется новый code. Ошибка кода сохраняет токен.",
+            "en": "Revoke one of your tokens by ID. Subsequent requests using it return 401. Revocation closes its RouterOS terminals. With 2FA enabled, require a fresh code. An invalid code leaves the token usable."
           },
           "request": {
-            "id": "token-id"
+            "id": "token-id",
+            "code": "123456"
           },
           "response": {
-            "ok": true
+            "ok": true,
+            "user": {
+              "id": "user-id",
+              "role": "operator",
+              "recovery_remaining": 8
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/account/tokens/reissue",
+          "role": "user (panel session)",
+          "description": {
+            "ru": "Заменяет собственный токен по id и возвращает 201 с token, item и user. При включённой 2FA обязателен новый code. Имя и expires_at сохраняются, включая null; id и секрет меняются. Старый токен и его терминалы RouterOS прекращают работу.",
+            "en": "Replace your token by ID and return 201 with token, item and user. Require a fresh code when 2FA is enabled. Keep the name and expires_at, including null; change the ID and secret. Invalidate the old token and close its RouterOS terminals."
+          },
+          "request": {
+            "id": "token-id",
+            "code": "123456"
           }
         }
       ]

@@ -46,3 +46,9 @@ Compose services does not terminate installation. The worker preserves the
 project's Compose files and network identities, backs up runtime state, then
 checks the new version and health. It restores the old images and data if those
 checks fail. See [Updates](updates.md) for scope and recovery.
+
+The web sign-in form uses internal `/auth/` routes. Public API integrations use
+Bearer tokens. The service returns 404 for the former `/api/login`,
+`/api/login/2fa` and `/api/logout` routes. Request quotas and persistent failure
+counters cover password checks, sign-in codes, API credentials and personal
+security operations. See [Authentication limits](configuration.md#authentication-limits-and-reverse-proxies).

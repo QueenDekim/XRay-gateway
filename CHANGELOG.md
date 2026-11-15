@@ -1,6 +1,14 @@
 # Changelog
 
-## 1.11.0
+## 2.0.0
+
+- Remove password sign-in from the public API; use internal routes for the web form.
+- Add authentication quotas, persistent escalating lockouts and a sign-in countdown.
+- Require 2FA for token revocation and reissue when enabled.
+- Reissue tokens without changing their name or expiration date; invalidate the previous credential.
+- Widen the token name field and update the API reference.
+
+## [1.11.0](https://github.com/QueenDekim/XRay-gateway/tree/1.11.0-e7c1ad5)
 
 - Add a No expiry option when creating API tokens; keep revocation and 2FA confirmation.
 - Represent tokens without an expiration date as `expires_at: null` in the API.

@@ -40,12 +40,12 @@ class ManagementTests(unittest.TestCase):
         self.assertEqual(status,200);codes=result['recovery_codes'];self.assertEqual(len(codes),10)
         self.assertTrue(result['user']['two_factor_enabled'])
         self.assertEqual(self.request('/api/state',headers=second)[0],401)
-        self.request('/api/logout',{},self.headers)
-        status,login,cookie=self.request('/api/login',{'username':'admin','password':'test-password'})
+        self.request('/auth/logout',{},self.headers)
+        status,login,cookie=self.request('/auth/login',{'username':'admin','password':'test-password'})
         self.assertEqual(status,200);self.assertTrue(login['requires_2fa']);self.assertIsNone(cookie)
         self.assertEqual(self.request('/api/state')[0],401)
-        self.assertEqual(self.request('/api/login/2fa',{'challenge':login['challenge'],'code':code})[0],401)
-        status,_,cookie=self.request('/api/login/2fa',{'challenge':login['challenge'],'code':codes[0]})
+        self.assertEqual(self.request('/auth/login/2fa',{'challenge':login['challenge'],'code':code})[0],401)
+        status,_,cookie=self.request('/auth/login/2fa',{'challenge':login['challenge'],'code':codes[0]})
         self.assertEqual(status,200)
         new={'Cookie':cookie.split(';')[0]};state=self.request('/api/state',headers=new)[1];new['X-CSRF-Token']=state['csrf']
         self.assertEqual(state['user']['recovery_remaining'],9)
@@ -53,15 +53,15 @@ class ManagementTests(unittest.TestCase):
         self.assertEqual(self.request('/api/account/2fa/disable',{'password':'test-password','code':codes[0]},new)[0],400)
         status,result,_=self.request('/api/account/2fa/disable',{'password':'test-password','code':codes[1]},new)
         self.assertEqual(status,200);self.assertFalse(result['user']['two_factor_enabled'])
-        self.assertEqual(self.request('/api/login',{'username':'admin','password':'test-password'})[0],200)
+        self.assertEqual(self.request('/auth/login',{'username':'admin','password':'test-password'})[0],200)
 
     def test_factor_challenge_attempt_limit(self):
         _,setup,_=self.request('/api/account/2fa/setup',{'password':'test-password'},self.headers)
         code=totp(setup['secret'],int(time.time()//30))
         _,result,_=self.request('/api/account/2fa/enable',{'code':code},self.headers)
-        _,login,_=self.request('/api/login',{'username':'admin','password':'test-password'})
-        for _ in range(5):self.assertEqual(self.request('/api/login/2fa',{'challenge':login['challenge'],'code':'wrong'})[0],401)
-        self.assertEqual(self.request('/api/login/2fa',{'challenge':login['challenge'],'code':result['recovery_codes'][0]})[0],401)
+        _,login,_=self.request('/auth/login',{'username':'admin','password':'test-password'})
+        for attempt in range(5):self.assertEqual(self.request('/auth/login/2fa',{'challenge':login['challenge'],'code':'wrong'})[0],429 if attempt==4 else 401)
+        self.assertEqual(self.request('/auth/login/2fa',{'challenge':login['challenge'],'code':result['recovery_codes'][0]})[0],429)
 
     def test_account_preferences_avatar_and_authorization(self):
         data={'display_name':'Operator name','preferences':{'design':'console','language':'en','colorScheme':'dark'}}
@@ -153,7 +153,7 @@ class ManagementTests(unittest.TestCase):
         self.assertIn('XRAY-GW-WATCH-project',service.import_script.call_args.args[0])
 
     def test_factor_management_attempts_are_limited(self):
-        for _ in range(5):self.assertEqual(self.request('/api/account/2fa/setup',{'password':'wrong'},self.headers)[0],400)
+        for attempt in range(5):self.assertEqual(self.request('/api/account/2fa/setup',{'password':'wrong'},self.headers)[0],429 if attempt==4 else 400)
         self.assertEqual(self.request('/api/account/2fa/setup',{'password':'test-password'},self.headers)[0],429)
 
     def test_saved_router_credentials_are_marked_and_preserved_without_exposure(self):

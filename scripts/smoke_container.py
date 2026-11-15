@@ -53,7 +53,7 @@ info=json.load(client.open('http://127.0.0.1:8080/api/version'))
 assert re.fullmatch(r'\d+\.\d+\.\d+-[0-9a-f]{7}',info['version']) and info['revision']
 assert info['url'].endswith('/'+info['version'])
 assert b'window.XrayMessages = ' in client.open('http://127.0.0.1:8080/locales.js').read()
-request=urllib.request.Request('http://127.0.0.1:8080/api/login',data=json.dumps({'username':'smoke-owner','password':'smoke-test-password'}).encode(),headers={'Content-Type':'application/json'})
+request=urllib.request.Request('http://127.0.0.1:8080/auth/login',data=json.dumps({'username':'smoke-owner','password':'smoke-test-password'}).encode(),headers={'Content-Type':'application/json'})
 client.open(request).read()
 state=json.load(client.open('http://127.0.0.1:8080/api/state'))
 assert state['username']=='smoke-owner' and state['profiles']==[] and state['ip_lists']==[] and state['ready']
@@ -89,13 +89,13 @@ assert client.open('http://127.0.0.1:8080/api/account/2fa/qr').read().startswith
 enabled=post('/api/account/2fa/enable',{'code':totp(setup['secret'],int(time.time()//30))})
 assert enabled['user']['two_factor_enabled'] and len(enabled['recovery_codes'])==10
 protected=post('/api/account/tokens/create',{'name':'Protected','code':enabled['recovery_codes'][-1],'no_expiry':True})
-post('/api/account/tokens/revoke',{'id':protected['item']['id']})
-post('/api/logout',{})
-challenge=post('/api/login',{'username':'smoke-owner','password':'smoke-test-password'})
+post('/api/account/tokens/revoke',{'id':protected['item']['id'],'code':enabled['recovery_codes'][-2]})
+post('/auth/logout',{})
+challenge=post('/auth/login',{'username':'smoke-owner','password':'smoke-test-password'})
 assert challenge['requires_2fa'] and not list(jar)
-post('/api/login/2fa',{'challenge':challenge['challenge'],'code':enabled['recovery_codes'][0]})
+post('/auth/login/2fa',{'challenge':challenge['challenge'],'code':enabled['recovery_codes'][0]})
 state=json.load(client.open('http://127.0.0.1:8080/api/state'));csrf=state['csrf']
-assert state['user']['recovery_remaining']==8
+assert state['user']['recovery_remaining']==7
 post('/api/account/2fa/disable',{'password':'smoke-test-password','code':enabled['recovery_codes'][1]})
 post('/api/account/profile',{'display_name':'Container smoke','preferences':{'design':'console','colorScheme':'dark','language':'en'}})
 output=io.BytesIO();Image.new('RGB',(32,40),'#385b70').save(output,format='PNG')

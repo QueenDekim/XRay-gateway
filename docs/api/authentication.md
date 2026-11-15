@@ -1,76 +1,9 @@
-# Authentication and sessions
+# Bearer authentication
 
-Use API tokens for integrations. The following methods handle web panel sign-in and sign-out. Session-based POST requests require X-CSRF-Token from GET /api/state.
+Create an API token under your name → API and send Authorization: Bearer <token> on each request. Bearer requests need no cookie or CSRF token. Use HTTPS.
 
-Sessions last 12 hours. The panel stores sessions encrypted and checks the account revision on each request. Password or role changes revoke earlier sessions.
+The API does not accept a username and password for sign-in. Keep tokens out of URLs. GET /api/version is public. Use Bearer for integrations and sign in to the web panel to manage tokens.
 
-With 2FA enabled, the first request returns a challenge without a cookie. Submit challenge and code in the second request. An unfinished login expires after three minutes.
-
-## POST /api/login
-
-Role: `public`.
-
-Verify username and password. Sets the cookie on success without 2FA.
-
-Request:
-
-```json
-{
-  "username": "admin",
-  "password": "example-password"
-}
-```
-
-Response:
-
-```json
-{
-  "requires_2fa": true,
-  "challenge": "temporary-challenge"
-}
-```
-
-## POST /api/login/2fa
-
-Role: `public`.
-
-Complete login with a TOTP or recovery code.
-
-Request:
-
-```json
-{
-  "challenge": "temporary-challenge",
-  "code": "123456"
-}
-```
-
-Response:
-
-```json
-{
-  "ok": true
-}
-```
-
-## POST /api/logout
-
-Role: `user`.
-
-Revoke the current session and close its RouterOS terminal.
-
-Request:
-
-```json
-{}
-```
-
-Response:
-
-```json
-{
-  "ok": true
-}
-```
+The default quota is 300 Bearer authorization attempts per minute per address. Five invalid tokens within 15 minutes trigger lockouts of 1, 5, 15 and 60 minutes, then 24 hours. HTTP 429 includes retry_after and the Retry-After header in seconds. Wait that long before retrying.
 
 [API index](README.md)

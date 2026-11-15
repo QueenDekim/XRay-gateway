@@ -133,6 +133,12 @@
       "revision": "d87cdee2b2907d3a3b5cbd0911c4ca15d44bdd27",
       "tag": "1.10.0-d87cdee",
       "summary": "Personal API tokens with Bearer authentication, expiry, revocation and MFA confirmation."
+    },
+    {
+      "version": "1.11.0",
+      "revision": "e7c1ad537b2163b58d58b49da5a15f5d40a3722d",
+      "tag": "1.11.0-e7c1ad5",
+      "summary": "Optional API tokens without expiration, retaining revocation and MFA confirmation."
     }
   ]
 }

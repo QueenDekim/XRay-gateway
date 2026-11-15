@@ -57,7 +57,7 @@ class PanelTest(unittest.TestCase):
         return result
 
     def auth(self, username='admin', password='test-password'):
-        status, _, cookie = self.request('/api/login', {'username': username, 'password': password})
+        status, _, cookie = self.request('/auth/login', {'username': username, 'password': password})
         self.assertEqual(status, 200)
         cookie = cookie.split(';')[0]
         _, data, _ = self.request('/api/state', headers={'Cookie': cookie})
@@ -155,10 +155,10 @@ class PanelTest(unittest.TestCase):
 
     def test_auth_csrf_logout(self):
         self.assertEqual(self.request('/api/state')[0], 401)
-        self.assertEqual(self.request('/api/login', {'username': 'admin', 'password': 'wrong'})[0], 401)
+        self.assertEqual(self.request('/auth/login', {'username': 'admin', 'password': 'wrong'})[0], 401)
         headers = self.auth()
         self.assertEqual(self.request('/api/routeros', {}, {'Cookie': headers['Cookie']})[0], 403)
-        self.assertEqual(self.request('/api/logout', {}, headers)[0], 200)
+        self.assertEqual(self.request('/auth/logout', {}, headers)[0], 200)
         self.assertEqual(self.request('/api/state', headers=headers)[0], 401)
 
     def test_favicon_available_before_login_with_png_content_type(self):
@@ -221,7 +221,7 @@ class PanelTest(unittest.TestCase):
         self.assertEqual(self.request('/api/password', {'current_password':'Operator-password-123', 'password':'Replacement-password-123'}, first)[0], 200)
         self.assertEqual(self.request('/api/state', headers=first)[0], 200)
         self.assertEqual(self.request('/api/state', headers=second)[0], 401)
-        self.assertEqual(self.request('/api/login', {'username':'operator', 'password':'Operator-password-123'})[0], 401)
+        self.assertEqual(self.request('/auth/login', {'username':'operator', 'password':'Operator-password-123'})[0], 401)
         self.auth('operator', 'Replacement-password-123')
 
     def test_user_reset_delete_and_last_administrator(self):

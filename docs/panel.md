@@ -92,6 +92,19 @@ sequence and seven-character SHA. See [Releases](releases.md) for bump rules.
 The container build records the source revision, so the panel can show it
 without Git at runtime.
 
+## Sign-in protection
+
+Five failed passwords or 2FA codes within 15 minutes lock the account for one
+minute. Repeated groups of failures increase the lockout to 5, 15 and 60 minutes,
+then 24 hours. The server preserves lockouts across restarts. Attempts made
+during a lockout do not extend it. After a successful sign-in, the account's
+failure history resets; address quotas remain separate.
+
+The sign-in form shows the remaining time and disables submission while keeping
+your entered credentials. The server enforces the same limits for direct
+requests. The default address quota is 30 sign-in requests per minute; 20 failed
+sign-ins across different accounts also block that address.
+
 ## Two-factor authentication
 
 Open your name → Security → Set up 2FA and enter your current password.
@@ -123,11 +136,15 @@ for backups, rollback and Docker permissions.
 
 Open your name → API to create a named token. Choose a lifetime from 1 to 365
 days; the default is 90. Select No expiry to create a token without an expiration
-date. With 2FA enabled, confirm each new token in the code
+date. With 2FA enabled, confirm creation, reissue and revocation in the code
 dialog. You can use an authenticator code or a single-use recovery code.
 
 Copy the token from the result dialog. Closing it clears the full value; the
-list shows its name, prefix and expiry. Revoke individual tokens from that list.
+list shows its name, prefix and expiry. Reissue replaces the secret while
+keeping the name and exact expiration date, including No expiry. Copy the new
+secret and update your integration; the previous token stops working. Revoke
+individual tokens from that list. Both actions close the old token’s RouterOS
+terminals. An invalid 2FA code leaves the token unchanged.
 You can keep up to 20 active tokens. Tokens inherit your role, so a regular
 user's token keeps read-only access to profiles, IP lists and RouterOS.
 
@@ -155,7 +172,6 @@ Quick endpoint index:
 | Endpoint | Operation |
 | --- | --- |
 | `GET /api/state` | Profiles, lists, statistics, settings and current account |
-| `POST /api/logout` | End the session |
 | `POST /api/profiles/add`, `/edit`, `/delete` | Change a profile using its revision |
 | `POST /api/ip-lists/add`, `/edit`, `/delete` | Change a list using its version |
 | `POST /api/routeros` | Generate a script from a list or explicit destinations |

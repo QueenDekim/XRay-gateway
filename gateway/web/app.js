@@ -24,7 +24,7 @@ const fmt = (n, rate = false) => {n = Number(n || 0); const units = ['Б','Ки�
 const duration = n => {n=Math.max(0,Math.floor(n));return n>=86400?`${Math.floor(n/86400)} ${t('д')} ${Math.floor(n%86400/3600)} ${t('ч')}`:n>=3600?`${Math.floor(n/3600)} ${t('ч')} ${Math.floor(n%3600/60)} ${t('м')}`:`${Math.floor(n/60)} ${t('м')} ${n%60} ${t('с')}`;};
 const esc = x => String(x ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notice(text){message('notice',text);$('notice').hidden=!text;}
-async function api(path, data){const response=await fetch(path,{method:data?'POST':'GET',headers:{'Accept-Language':window.I18n.language(),...(data?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{})},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(65000)});const body=await response.json();if(!response.ok){if(response.status===401 && !path.startsWith('/api/login')){showLogin();}throw new Error(t(body.error || 'Ошибка запроса'));}return body;}
+async function api(path, data){const response=await fetch(path,{method:data?'POST':'GET',headers:{'Accept-Language':window.I18n.language(),...(data?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{})},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(65000)});const body=await response.json();if(!response.ok){if(response.status===401 && !path.startsWith('/auth/login')){showLogin();}throw new Error(t(body.error || 'Ошибка запроса'));}return body;}
 const pagePaths=Object.fromEntries(['overview','profiles','iplists','routeros','settings','account','wiki'].map(name=>[name,'/'+name]));
 function showLogin(){window.Management?.clear();state=null;csrf='';window.location.replace('/login?next='+encodeURIComponent(window.location.pathname+window.location.hash));}
 async function refresh(){try{const data=await api('/api/state');state=data;csrf=data.csrf;render();}catch(e){if(state)notice(e.message);}}
@@ -166,7 +166,7 @@ if($('subscriptionForm')) $('subscriptionForm').addEventListener('submit',async 
  }catch(error){message('subscriptionError',error.message);}finally{button.disabled=false;}
 });
 document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.page)selectPage(button.dataset.page);if(button.dataset.edit)editProfile(button.dataset.edit);if(button.dataset.delete&&canManage()){const p=state.profiles.find(p=>p.id===button.dataset.delete);if(!await confirmAction(()=>t('Удалить профиль «{0}»? Xray будет перезапущен, текущие соединения прервутся.',p.name),'Удалить'))return;button.disabled=true;try{await api('/api/profiles/delete',{id:p.id,revision:state.revision});await refresh();}catch(e){notice(e.message);}finally{button.disabled=false;}}});
-if($('logout')) $('logout').onclick=async()=>{try{await api('/api/logout',{});showLogin();}catch(e){notice(e.message);}};
+if($('logout')) $('logout').onclick=async()=>{try{await api('/auth/logout',{});showLogin();}catch(e){notice(e.message);}};
 if($('addProfile')) $('addProfile').onclick=()=>editProfile(null);if($('closeDialog')) $('closeDialog').onclick=()=>$('profileDialog').close();
 if($('resetProfileChecks')) $('resetProfileChecks').onclick=async()=>{if(!canManage())return;const button=$('resetProfileChecks');button.disabled=true;try{await api('/api/profiles/reset-checks',{});await refresh();}catch(error){notice(error.message);}finally{button.disabled=false;}};
 if($('profileForm')) $('profileForm').addEventListener('submit',async e=>{

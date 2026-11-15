@@ -1,5 +1,4 @@
 """Session and Bearer authentication for the management API and web panel."""
-import collections
 import hmac
 import http.cookies
 import http.server
@@ -12,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs, quote
 from controller import routeros, profile_sources, subscription_group, profile_node_id
 from accounts import Accounts
+from auth_rate import AuthRate, AuthRateLimit
 from version import build_info
 from localization import translate_message
 import web_pages
@@ -23,14 +23,23 @@ class Panel(http.server.BaseHTTPRequestHandler):
     snapshot = None
     sessions = {}
     token_sessions = {}
-    failures = collections.defaultdict(list)
     pending_logins = {}
-    security_attempts = {}
     assets = Path(__file__).parent / 'web'
     defaults = []
 
     def accounts(self):
         return Accounts(self.controller.directory / 'auth.json', self.controller.lock)
+
+    def rate(self):
+        with self.controller.lock:
+            if not hasattr(self.controller, 'auth_rate'):self.controller.auth_rate = AuthRate(self.controller.directory, self.controller.lock)
+            return self.controller.auth_rate
+
+    def peer(self):
+        return self.rate().peer(self.client_address[0], self.headers.get('X-Forwarded-For', ''))
+
+    def rate_response(self, error):
+        self.respond(429, {'error': 'Слишком много попыток авторизации. Повторите позже.', 'retry_after': error.seconds}, retry_after=error.seconds)
 
     def router(self):
         from router_service import RouterService
@@ -50,7 +59,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-    def respond(self, status, data, cookie=None, content_type='application/json'):
+    def respond(self, status, data, cookie=None, content_type='application/json', retry_after=None):
         if isinstance(data,dict):
             language=self.headers.get('Accept-Language','ru')
             data=dict(data)
@@ -68,6 +77,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
             self.send_header(key, value)
         if status == 401 and urlsplit(self.path).path.startswith('/api/'):
             self.send_header('WWW-Authenticate', 'Bearer realm="Xray Gateway"')
+        if retry_after is not None:self.send_header('Retry-After', str(retry_after))
         if cookie:
             if self.headers.get('X-Forwarded-Proto','').split(',')[0].strip()=='https':cookie+='; Secure'
             self.send_header('Set-Cookie', cookie)
@@ -78,10 +88,14 @@ class Panel(http.server.BaseHTTPRequestHandler):
         authorization = self.headers.get('Authorization')
         if authorization is not None and urlsplit(self.path).path.startswith('/api/'):
             from api_tokens import ApiTokens
+            peer = self.peer()
+            self.rate().before('bearer', peer, count=not getattr(self, '_bearer_counted', False))
+            self._bearer_counted = True
             match = re.fullmatch(r'(?i:Bearer) (\S{1,128})', authorization)
             with self.controller.lock:
                 authenticated = ApiTokens(self.accounts()).authenticate(match[1]) if match else None
                 if not authenticated:
+                    self.rate().failed('bearer', peer)
                     return None, None
                 key = 'api:' + authenticated['id']
                 if key not in self.token_sessions:
@@ -129,7 +143,14 @@ class Panel(http.server.BaseHTTPRequestHandler):
                 'ip_lists':self.controller.ip_lists(self.defaults),'updates':self.updates().snapshot(session['user']['role']=='admin')}
 
     def do_GET(self):
+        self._bearer_counted = False
+        try:self.handle_get()
+        except AuthRateLimit as error:self.rate_response(error)
+
+    def handle_get(self):
         path = urlsplit(self.path).path
+        if path in ('/api/login', '/api/login/2fa', '/api/logout'):
+            self.respond(404, {'error': 'Не найдено.'});return
         page,topic=web_pages.route(path)
         if path in ('/','/login') or page:
             _,session=self.browser_session()
@@ -202,6 +223,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
             self.respond(404, {'error': 'Не найдено.'})
 
     def do_POST(self):
+        self._bearer_counted = False
         updater=self.updates()
         if not updater.enter_write():
             self.respond(503,{'error':'Устанавливается обновление. Повторите запрос после перезапуска.'});return
@@ -224,10 +246,12 @@ class Panel(http.server.BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             if self.updates().maintenance():
                 self.respond(503,{'error':'Устанавливается обновление. Повторите запрос после перезапуска.'});return
-            if path == '/api/login':
+            if path in ('/api/login', '/api/login/2fa', '/api/logout'):
+                self.respond(404, {'error': 'Не найдено.'});return
+            if path == '/auth/login':
                 self.login(data)
                 return
-            if path=='/api/login/2fa':
+            if path=='/auth/login/2fa':
                 self.login_factor(data)
                 return
             token, session = self.session()
@@ -235,7 +259,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
                 self.respond(401, {'error': 'Требуется вход.'})
                 return
             bearer = session.get('auth_method') == 'token'
-            if bearer and (path.startswith('/api/account/tokens') or path == '/api/logout'):
+            if bearer and (path.startswith('/api/account/tokens') or path == '/auth/logout'):
                 self.respond(403, {'error': 'Управление API-токенами доступно после входа в панель.'});return
             if not bearer and not hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), session['csrf']):
                 self.respond(403, {'error': 'Недействительный CSRF-токен.'})
@@ -244,7 +268,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
             if shared_write and session['user']['role']!='admin':
                 self.respond(403,{'error':'Требуются права администратора.'})
                 return
-            if path == '/api/logout':
+            if path == '/auth/logout':
                 with self.controller.lock:
                     self.sessions.pop(token, None)
                     session_store.save(self.controller,self.sessions)
@@ -253,27 +277,21 @@ class Panel(http.server.BaseHTTPRequestHandler):
             elif path.startswith('/api/account/'):
                 try:
                     accounts=self.accounts();actor=session['user'];codes=None
-                    if path.startswith('/api/account/2fa/') or path == '/api/account/tokens/create':
-                        with self.controller.lock:
-                            now=time.time()
-                            attempts=[stamp for stamp in self.security_attempts.get(actor['id'],[]) if stamp>now-60]
-                            if len(attempts)>=5:
-                                self.respond(429,{'error':'Слишком много попыток. Повторите через минуту.'});return
-                            if len(self.security_attempts)>1024:self.security_attempts.clear()
-                            self.security_attempts[actor['id']]=attempts+[now]
-                    if path == '/api/account/tokens/create':
+                    protected = path.startswith('/api/account/2fa/') or path in ('/api/account/tokens/create', '/api/account/tokens/reissue', '/api/account/tokens/revoke')
+                    if protected:self.rate().before('security', actor['id'])
+                    if path in ('/api/account/tokens/create', '/api/account/tokens/reissue', '/api/account/tokens/revoke'):
                         from api_tokens import ApiTokens
-                        result = ApiTokens(accounts).create(actor, data)
-                        with self.controller.lock:self.update_session_user(token, result['user'])
-                        self.respond(201, result);return
-                    elif path == '/api/account/tokens/revoke':
-                        from api_tokens import ApiTokens
+                        service = ApiTokens(accounts)
                         identifier = str(data.get('id', ''))
-                        ApiTokens(accounts).revoke(actor, identifier)
-                        identity = 'api:' + identifier
-                        with self.controller.lock:self.token_sessions.pop(identity, None)
-                        if hasattr(self.controller, 'router_service'):self.router().logout(identity)
-                        self.respond(200, {'ok': True});return
+                        if path.endswith('/create'):result = service.create(actor, data)
+                        elif path.endswith('/reissue'):result = service.reissue(actor, identifier, data.get('code', ''))
+                        else:result = service.revoke(actor, identifier, data.get('code', ''))
+                        if not path.endswith('/create'):
+                            identity = 'api:' + identifier
+                            with self.controller.lock:self.token_sessions.pop(identity, None)
+                            if hasattr(self.controller, 'router_service'):self.router().logout(identity)
+                        with self.controller.lock:self.update_session_user(token, result['user'])
+                        self.respond(200 if path.endswith('/revoke') else 201, result);return
                     elif path=='/api/account/profile':user=accounts.profile(actor,data)
                     elif path=='/api/account/avatar':user=accounts.avatar(actor,data.get('image',''))
                     elif path=='/api/account/2fa/setup':
@@ -286,7 +304,9 @@ class Panel(http.server.BaseHTTPRequestHandler):
                         self.update_session_user(token,user)
                         session_store.save(self.controller,self.sessions)
                     self.respond(200,{'ok':True,'user':user}|({'recovery_codes':codes} if codes is not None else {}))
-                except ValueError as exc:self.respond(400,{'error':str(exc)})
+                except ValueError as exc:
+                    if protected:self.rate().failed('security', actor['id'])
+                    self.respond(400,{'error':str(exc)})
             elif path.startswith('/api/updates/'):
                 try:
                     updater=self.updates()
@@ -406,7 +426,9 @@ class Panel(http.server.BaseHTTPRequestHandler):
                     elif path=='/api/routeros/host-key':self.respond(200,router.scan(data))
                     elif path=='/api/routeros/terminal/open':
                         opened=router.open_terminal(actor,token,data.get('cols',100),data.get('rows',30))
-                        _,active=self.session()
+                        try:_,active=self.session()
+                        except AuthRateLimit:
+                            router.close_terminal(opened['id']);raise
                         if not active:
                             router.close_terminal(opened['id']);self.respond(401,{'error':'Требуется вход.'});return
                         self.respond(200,opened)
@@ -429,12 +451,14 @@ class Panel(http.server.BaseHTTPRequestHandler):
                 self.respond(200, {'ok': True, 'list': item})
             elif path == '/api/password':
                 try:
+                    self.rate().before('security', session['user']['id'])
                     with self.controller.lock:
                         user = self.accounts().change_password(session['user'], data.get('current_password'), data.get('password'))
                         self.update_session_user(token, user)
                         session_store.save(self.controller,self.sessions)
                     self.respond(200, {'ok':True})
                 except ValueError as exc:
+                    self.rate().failed('security', session['user']['id'])
                     self.respond(400, {'error':str(exc)})
             elif path == '/api/settings' or path in ('/api/users/add', '/api/users/edit', '/api/users/delete'):
                 try:
@@ -458,46 +482,47 @@ class Panel(http.server.BaseHTTPRequestHandler):
                     self.respond(400, {'error':str(exc)})
             else:
                 self.respond(404, {'error': 'Не найдено.'})
+        except AuthRateLimit as error:self.rate_response(error)
         except (ValueError, KeyError, TypeError):
             self.respond(400, {'error': 'Некорректные данные. Проверьте поля, VLESS URI и актуальность страницы.'})
         except Exception:
             self.respond(503, {'error': 'Не удалось применить конфигурацию. Проверьте состояние шлюза.'})
 
     def login(self, data):
-        now, ip = time.time(), self.client_address[0]
+        now, ip = time.time(), self.peer()
+        username = str(data.get('username', ''))
+        self.rate().before('login', ip, username)
+        # Serialize the password check with quota updates so concurrent failures cannot bypass the threshold.
         with self.controller.lock:
-            if len(self.failures) > 1024:
-                self.failures.clear()
-            self.failures[ip] = [t for t in self.failures[ip] if t > now - 60]
-            if len(self.failures[ip]) >= 5:
-                self.respond(429, {'error': 'Слишком много попыток. Повторите через минуту.'})
-                return
-            self.failures[ip].append(now)
-        auth = self.accounts().authenticate(data.get('username', ''), data.get('password', ''))
-        if auth is None:
-            self.respond(401, {'error': 'Неверный логин или пароль.'})
-            return
-        if auth.get('two_factor_enabled'):
-            challenge=secrets.token_urlsafe(32)
-            with self.controller.lock:
+            self.rate().before('login', ip, username, count=False)
+            auth = self.accounts().authenticate(username, data.get('password', ''))
+            if auth is None:
+                self.rate().failed('login', ip, username)
+                self.respond(401, {'error': 'Неверный логин или пароль.'});return
+            if auth.get('two_factor_enabled'):
+                challenge = secrets.token_urlsafe(32)
                 for key in list(self.pending_logins):
-                    if self.pending_logins[key]['expires']<now:self.pending_logins.pop(key,None)
-                if len(self.pending_logins)>=128:self.pending_logins.pop(next(iter(self.pending_logins)))
-                self.pending_logins[challenge]={'user_id':auth['id'],'revision':auth['revision'],'expires':now+180,'attempts':0,'ip':ip}
-            self.respond(200,{'requires_2fa':True,'challenge':challenge})
-            return
+                    if self.pending_logins[key]['expires'] < now:self.pending_logins.pop(key, None)
+                if len(self.pending_logins) >= 128:self.pending_logins.pop(next(iter(self.pending_logins)))
+                self.pending_logins[challenge] = {'user_id': auth['id'], 'revision': auth['revision'],
+                    'username': auth['username'], 'expires': now + 180, 'attempts': 0, 'ip': ip}
+                self.respond(200, {'requires_2fa': True, 'challenge': challenge});return
         self.issue_session(auth)
 
     def login_factor(self,data):
-        now,ip=time.time(),self.client_address[0]
+        now,ip=time.time(),self.peer()
         with self.controller.lock:
             challenge=str(data.get('challenge',''));pending=self.pending_logins.get(challenge)
+            username = pending.get('username') if pending and pending['ip'] == ip else None
+            self.rate().before('login', ip, username)
             if not pending or pending['expires']<=now or pending['attempts']>=5 or pending['ip']!=ip:
                 self.pending_logins.pop(challenge,None)
+                self.rate().failed('login', ip)
                 self.respond(401,{'error':'Вход истёк. Введите логин и пароль заново.'});return
             pending['attempts']+=1
             accounts=self.accounts()
             if not accounts.verify_factor(pending['user_id'],pending['revision'],data.get('code','')):
+                self.rate().failed('login', ip, username)
                 self.respond(401,{'error':'Неверный или использованный код 2FA.'});return
             auth=accounts.session_user(pending['user_id'],pending['revision'])
             self.pending_logins.pop(challenge,None)
@@ -508,7 +533,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
         now,ip=time.time(),self.client_address[0]
         token = secrets.token_urlsafe(32)
         with self.controller.lock:
-            self.failures.pop(ip, None)
+            self.rate().succeeded(auth['username'])
             for expired in list(self.sessions):
                 if self.sessions[expired]['expires'] <= now:
                     self.sessions.pop(expired)

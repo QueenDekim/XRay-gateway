@@ -32,4 +32,4 @@ Role: `user`.
 
 Gateway state, profiles, lists, statistics, current user and CSRF. Only administrators receive users. Passwords and VLESS keys are omitted.
 
-[Authentication and sessions](authentication.md) · [API tokens](tokens.md) · [Profiles and subscriptions](profiles.md) · [IP lists and domains](ip-lists.md) · [RouterOS and jobs](routeros.md) · [RouterOS terminal](terminal.md) · [Accounts and security](accounts.md) · [Panel settings](settings.md) · [Updates](updates.md)
+[Bearer authentication](authentication.md) · [API tokens](tokens.md) · [Profiles and subscriptions](profiles.md) · [IP lists and domains](ip-lists.md) · [RouterOS and jobs](routeros.md) · [RouterOS terminal](terminal.md) · [Accounts and security](accounts.md) · [Panel settings](settings.md) · [Updates](updates.md)

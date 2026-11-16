@@ -1,6 +1,11 @@
 # Changelog
 
-## 2.0.1
+## 2.0.2
+
+- Clarify user settings navigation in the API reference, panel guide and security documentation.
+- Update the Russian and English Wiki text in the panel.
+
+## [2.0.1](https://github.com/QueenDekim/XRay-gateway/tree/2.0.1-ac1d355)
 
 - Preserve large authentication lockout histories across restarts.
 

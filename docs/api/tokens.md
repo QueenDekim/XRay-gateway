@@ -1,6 +1,6 @@
 # API tokens
 
-Open your name → API. Enter a name and a lifetime from 1 to 365 days, or select No expiry. With 2FA enabled, confirm creation, reissue and revocation with an authenticator or recovery code. Copy the full token when it appears; the panel stores its SHA-256 hash and does not display it again.
+Open your user settings → API. Enter a name and a lifetime from 1 to 365 days, or select No expiry. With 2FA enabled, confirm creation, reissue and revocation with an authenticator or recovery code. Copy the full token when it appears; the panel stores its SHA-256 hash and does not display it again.
 
 Send Authorization: Bearer <token>. A token has its owner’s permissions: regular users cannot change profiles, IP lists or RouterOS. Revocation, expiry, account deletion, password or role changes and 2FA security changes invalidate tokens.
 

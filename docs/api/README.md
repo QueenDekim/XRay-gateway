@@ -2,7 +2,7 @@
 
 API paths are relative to the panel URL. Requests and responses use JSON.
 
-Create an API token under your name → API. Send Authorization: Bearer <token> on each request. Bearer requests need no cookie or CSRF token. Use HTTPS.
+Create an API token in your user settings → API. Send Authorization: Bearer <token> on each request. Bearer requests need no cookie or CSRF token. Use HTTPS.
 
 Errors return an error field. Accept-Language: en selects English; Russian is the default. Status codes 400, 401, 403, 429 and 503 mean invalid input, missing session, forbidden access, rate limit and unavailable operation.
 

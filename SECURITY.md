@@ -22,7 +22,7 @@ protect `.backups/`, runtime encryption keys and saved session files. See
 
 API tokens are bearer credentials. Use HTTPS and keep them out of URLs and logs.
 The panel stores token hashes and shows each secret once. Revoke unused tokens
-under your name → API. Account password, role and 2FA security changes invalidate
+in your user settings → API. Account password, role and 2FA security changes invalidate
 previous tokens.
 
 Authentication failures trigger escalating lockouts. Configure trusted proxy

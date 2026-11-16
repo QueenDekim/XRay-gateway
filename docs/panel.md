@@ -82,7 +82,7 @@ lists use compact rows in all four styles. Light surfaces use a pale accent tint
 Your account stores appearance and language preferences; the browser also keeps
 them for the sign-in screen. The header sun/moon button changes color mode.
 
-Choose Русский or English on the sign-in page or under your name → Appearance.
+Choose Русский or English on the sign-in page or in your user settings → Appearance.
 The browser saves your language choice. Switching languages keeps unsaved form
 values and updates labels, messages, chart captions and date formats.
 
@@ -107,7 +107,7 @@ sign-ins across different accounts also block that address.
 
 ## Two-factor authentication
 
-Open your name → Security → Set up 2FA and enter your current password.
+Open your user settings → Security → Set up 2FA and enter your current password.
 Scan the QR code with a TOTP authenticator, then enter its six-digit code to
 enable protection. Save the ten recovery codes before leaving the page.
 Each recovery code works once; the panel stores only their hashes.
@@ -134,7 +134,7 @@ for backups, rollback and Docker permissions.
 
 ## API tokens
 
-Open your name → API to create a named token. Choose a lifetime from 1 to 365
+Open your user settings → API to create a named token. Choose a lifetime from 1 to 365
 days; the default is 90. Select No expiry to create a token without an expiration
 date. With 2FA enabled, confirm creation, reissue and revocation in the code
 dialog. You can use an authenticator code or a single-use recovery code.

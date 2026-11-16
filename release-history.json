@@ -145,6 +145,12 @@
       "revision": "5ab9f60381b24ce789b10fc73e8bb409ea77005c",
       "tag": "2.0.0-5ab9f60",
       "summary": "Bearer-only public API, escalating authentication lockouts and MFA-confirmed token management."
+    },
+    {
+      "version": "2.0.1",
+      "revision": "ac1d355871bd068b5802a71812c4ad2165b6cccf",
+      "tag": "2.0.1-ac1d355",
+      "summary": "Preserve large authentication lockout histories across restarts."
     }
   ]
 }

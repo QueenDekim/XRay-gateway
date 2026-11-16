@@ -14,7 +14,7 @@
         },
         {
           "ru": "Создайте API-токен в настройках пользователя, вкладка API. Передавайте Authorization: Bearer <token> в каждом запросе. Для Bearer-запросов cookie и CSRF-токен не требуются. Используйте HTTPS.",
-          "en": "Create an API token under your name → API. Send Authorization: Bearer <token> on each request. Bearer requests need no cookie or CSRF token. Use HTTPS."
+          "en": "Create an API token in your user settings → API. Send Authorization: Bearer <token> on each request. Bearer requests need no cookie or CSRF token. Use HTTPS."
         },
         {
           "ru": "Ошибки возвращают поле error. Accept-Language: en включает английский язык; по умолчанию используется русский. Коды 400, 401, 403, 429 и 503 обозначают неверные данные, отсутствие сессии, запрет доступа, ограничение частоты и недоступность операции.",
@@ -61,8 +61,8 @@
       },
       "paragraphs": [
         {
-          "ru": "Создайте API-токен через своё имя → API и передавайте Authorization: Bearer <token> в каждом запросе. Cookie и CSRF для Bearer-запросов не требуются. Используйте HTTPS.",
-          "en": "Create an API token under your name → API and send Authorization: Bearer <token> on each request. Bearer requests need no cookie or CSRF token. Use HTTPS."
+          "ru": "Создайте API-токен в настройках пользователя → API и передавайте Authorization: Bearer <token> в каждом запросе. Cookie и CSRF для Bearer-запросов не требуются. Используйте HTTPS.",
+          "en": "Create an API token in your user settings → API and send Authorization: Bearer <token> on each request. Bearer requests need no cookie or CSRF token. Use HTTPS."
         },
         {
           "ru": "API не принимает логин и пароль для входа. Не передавайте токен в URL. GET /api/version доступен без авторизации. Для интеграций используйте Bearer; управление токенами выполняйте после входа в веб-панель.",
@@ -83,8 +83,8 @@
       },
       "paragraphs": [
         {
-          "ru": "Откройте своё имя → API. Укажите название и срок действия от 1 до 365 дней или включите «Без окончания». При включённой 2FA подтвердите выпуск, перевыпуск и отзыв кодом аутентификатора или резервным кодом. Панель показывает полный токен один раз; на диске хранится SHA-256 хеш.",
-          "en": "Open your name → API. Enter a name and a lifetime from 1 to 365 days, or select No expiry. With 2FA enabled, confirm creation, reissue and revocation with an authenticator or recovery code. Copy the full token when it appears; the panel stores its SHA-256 hash and does not display it again."
+          "ru": "Откройте настройки своего пользователя → API. Укажите название и срок действия от 1 до 365 дней или включите «Без окончания». При включённой 2FA подтвердите выпуск, перевыпуск и отзыв кодом аутентификатора или резервным кодом. Панель показывает полный токен один раз; на диске хранится SHA-256 хеш.",
+          "en": "Open your user settings → API. Enter a name and a lifetime from 1 to 365 days, or select No expiry. With 2FA enabled, confirm creation, reissue and revocation with an authenticator or recovery code. Copy the full token when it appears; the panel stores its SHA-256 hash and does not display it again."
         },
         {
           "ru": "Используйте Authorization: Bearer <token>. Токен имеет права владельца: обычный пользователь не может менять профили, IP-списки и RouterOS. Отзыв, истечение срока, удаление пользователя, смена пароля, прав или состояния 2FA прекращают доступ по токену.",

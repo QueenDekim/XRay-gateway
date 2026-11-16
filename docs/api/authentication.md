@@ -1,6 +1,6 @@
 # Bearer authentication
 
-Create an API token under your name → API and send Authorization: Bearer <token> on each request. Bearer requests need no cookie or CSRF token. Use HTTPS.
+Create an API token in your user settings → API and send Authorization: Bearer <token> on each request. Bearer requests need no cookie or CSRF token. Use HTTPS.
 
 The API does not accept a username and password for sign-in. Keep tokens out of URLs. GET /api/version is public. Use Bearer for integrations and sign in to the web panel to manage tokens.
 

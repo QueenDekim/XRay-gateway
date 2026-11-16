@@ -65,6 +65,12 @@ for page in ['overview','profiles','iplists','routeros','settings','account']:
 for topic in ['authentication','tokens','profiles','ip-lists','routeros','terminal','accounts','settings','updates']:
  assert b'class="wiki-article"' in client.open('http://127.0.0.1:8080/wiki/'+topic).read()
 assert json.load(client.open('http://127.0.0.1:8080/api/updates'))['current']==info['version']
+if __import__('pathlib').Path('/data/.history-smoke').exists():
+ jobs={job['id']:job for job in json.load(client.open('http://127.0.0.1:8080/api/routeros/jobs'))['jobs']}
+ assert jobs['a'*32]['status']=='done' and jobs['a'*32]['logs']==['Stored before restart']
+ assert jobs['b'*32]['status']=='error' and 'перезапуском' in jobs['b'*32]['logs'][-1]
+ print('Container persistent RouterOS history / interrupted-job recovery PASS')
+
 
 print('Fresh-volume state, authentication, localization and version PASS')
 for asset in ['management.js','terminal-stream.js','vendor/xterm.js','vendor/addon-fit.js','vendor/xterm.css']:
@@ -110,6 +116,19 @@ print('Container MFA challenge / QR / recovery / encrypted secrets / avatars / p
                 print(result.stdout.strip())
                 docker('rm','-f',core,gateway)
                 secret.write_text('replacement-must-not-reset-account')
+                if attempt==0:
+                    seed="""import json,sqlite3,time
+from pathlib import Path
+root=Path('/data');owner=json.loads((root/'auth.json').read_text())['users'][0]['id']
+with sqlite3.connect(root/'panel.sqlite') as database:
+ for identifier,status in [('a'*32,'done'),('b'*32,'running')]:
+  job={'id':identifier,'action':'apply','list_id':'project','name':'Smoke history','owner':owner,'status':status,'offset':0,'created':time.time()}
+  database.execute('INSERT INTO router_jobs VALUES (?,?)',(identifier,json.dumps(job)))
+  database.execute('INSERT INTO router_job_logs VALUES (?,?,?)',(identifier,0,'Stored before restart'))
+(root/'.history-smoke').touch()
+"""
+                    docker('run','--rm','--network','none','--entrypoint','python3',
+                           '--mount',f'type=bind,source={runtime},target=/data',args.image,'-c',seed)
             print('PERSISTENT ACCOUNT / EMPTY PROFILES / XRAY API / HEALTH PASS')
         finally:
             docker('rm','-f',core,gateway,check=False)

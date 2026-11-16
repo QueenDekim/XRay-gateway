@@ -63,6 +63,46 @@ class RouterService:
         self.jobs={};self.busy={};self.terminals={}
         network=ipaddress.ip_network(controller.settings()['source'])
         self.default_host=str(network.network_address+1)
+        with controller.lock:
+            controller.db.execute('CREATE TABLE IF NOT EXISTS router_jobs (id TEXT PRIMARY KEY, value TEXT NOT NULL)')
+            controller.db.execute('CREATE TABLE IF NOT EXISTS router_job_logs (job_id TEXT NOT NULL, sequence INTEGER NOT NULL, line TEXT NOT NULL, PRIMARY KEY (job_id, sequence))')
+            controller.db.commit()
+            jobs=[json.loads(row[0]) for row in controller.db.execute('SELECT value FROM router_jobs')]
+            for job in sorted(jobs,key=lambda value:value['created']):
+                job['logs']=[row[0] for row in controller.db.execute('SELECT line FROM router_job_logs WHERE job_id=? ORDER BY sequence',(job['id'],))]
+                self.jobs[job['id']]=job
+
+    def _save_job(self,job):
+        # Mutations acquire controller.lock before self.lock, including log callbacks.
+        metadata={key:value for key,value in job.items() if key!='logs'}
+        self.controller.db.execute('INSERT OR REPLACE INTO router_jobs VALUES (?,?)',(job['id'],json.dumps(metadata,ensure_ascii=False)))
+        self.controller.db.commit()
+
+    def _append_log(self,job,line):
+        sequence=job['offset']+len(job['logs'])
+        value=str(line)[:2000]
+        self.controller.db.execute('INSERT INTO router_job_logs VALUES (?,?,?)',(job['id'],sequence,value))
+        job['logs'].append(value)
+        if len(job['logs'])>600:job['logs'].pop(0);job['offset']+=1
+        self.controller.db.execute('DELETE FROM router_job_logs WHERE job_id=? AND sequence<?',(job['id'],job['offset']))
+        self._save_job(job)
+
+    def _prune_jobs(self):
+        for old in sorted(self.jobs.values(),key=lambda value:value['created'])[:-30]:
+            if old['status'] in ('done','error'):
+                self.controller.db.execute('DELETE FROM router_job_logs WHERE job_id=?',(old['id'],))
+                self.controller.db.execute('DELETE FROM router_jobs WHERE id=?',(old['id'],))
+                self.jobs.pop(old['id'],None)
+        self.controller.db.commit()
+
+    def recover_jobs(self):
+        """Called once at application startup; interrupted imports are never replayed."""
+        with self.controller.lock,self.lock:
+            for job in self.jobs.values():
+                if job['status'] in ('queued','running'):
+                    job.update(status='error',finished=time.time())
+                    self._append_log(job,'Выполнение прервано перезапуском панели. Проверьте результат в RouterOS.')
+            self._prune_jobs()
 
     def config(self):
         if self.path.exists():return json.loads(self.path.read_text(encoding='utf-8'))
@@ -194,15 +234,16 @@ class RouterService:
             job_id=secrets.token_hex(16)
             job={'id':job_id,'action':action,'list_id':identifier,'name':item['name'],'owner':actor['id'],'status':'queued','logs':[],'offset':0,'created':time.time()}
             self.jobs[job_id]=job;self.busy[identifier]=job_id
+            self._save_job(job)
             settings=copy.deepcopy(self.controller.settings())
         def log(line):
-            with self.lock:
-                job['logs'].append(str(line)[:2000])
-                if len(job['logs'])>600:job['logs'].pop(0);job['offset']+=1
+            with self.controller.lock,self.lock:self._append_log(job,line)
         def work():
+            final_status='error'
             try:
                 with self.operation_lock:
-                    with self.lock:job['status']='running'
+                    with self.controller.lock,self.lock:
+                        job['status']='running';self._save_job(job)
                     script=cleanup_script(identifier)
                     if action=='apply' and item['addresses']:
                         warnings=[]
@@ -215,15 +256,14 @@ class RouterService:
                             self.controller.change_ip_list('delete',{'id':identifier,'version':item['version']},defaults)
                         log('Список удалён из панели и RouterOS')
                     else:log('Список установлен в RouterOS')
-                    with self.lock:job['status']='done'
+                    final_status='done'
             except Exception as exc:
                 log(str(exc) if isinstance(exc,ValueError) else 'Не удалось выполнить операцию RouterOS.')
-                with self.lock:job['status']='error'
             finally:
-                with self.lock:
+                with self.controller.lock,self.lock:
                     self.busy.pop(identifier,None)
-                    for old in sorted(self.jobs.values(),key=lambda j:j['created'])[:-30]:
-                        if old['status'] in ('done','error'):self.jobs.pop(old['id'],None)
+                    job.update(status=final_status,finished=time.time());self._save_job(job)
+                    self._prune_jobs()
         threading.Thread(target=work,daemon=True).start()
         return self.job(job_id,actor)
 
@@ -232,11 +272,11 @@ class RouterService:
             job=self.jobs.get(identifier)
             if not job or (job['owner']!=actor['id'] and actor['role']!='admin'):raise ValueError('Операция не найдена.')
             index=max(0,int(cursor)-job['offset'])
-            return {k:job[k] for k in ('id','action','list_id','name','status')}|{'logs':job['logs'][index:],'cursor':job['offset']+len(job['logs'])}
+            return {k:job[k] for k in ('id','action','list_id','name','status','created')}|{'logs':job['logs'][index:],'cursor':job['offset']+len(job['logs'])}
 
     def recent(self,actor):
         with self.lock:
-            return [self.job(job['id'],actor) for job in reversed(list(self.jobs.values())) if job['owner']==actor['id'] or actor['role']=='admin'][:20]
+            return [self.job(job['id'],actor) for job in reversed(list(self.jobs.values())) if job['owner']==actor['id'] or actor['role']=='admin'][:30]
 
     def open_terminal(self,actor,session,cols=100,rows=30):
         client=self.connect()

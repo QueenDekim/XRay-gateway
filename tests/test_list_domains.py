@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 import json
 from pathlib import Path
 import re
@@ -54,8 +55,8 @@ class DomainLists(unittest.TestCase):
             self.assertIn('address=www.example.com ',output.read_text(encoding='utf-8'))
 
     def test_import_logs_omit_only_number_comments_and_keep_errors(self):
-        with tempfile.TemporaryDirectory() as directory:
-            controller=Mock();controller.directory=Path(directory);controller.settings.return_value={'source':'192.168.50.0/24'}
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            controller=Controller(directory);stack.callback(controller.db.close)
             for fail in (False,True):
                 service=RouterService(controller);client=Mock();sftp=MagicMock();client.open_sftp.return_value=sftp;service.connect=lambda:client
                 stream=sftp.open.return_value.__enter__.return_value;logs=[]

@@ -178,3 +178,15 @@ Quick endpoint index:
 | `POST /api/settings` | Save administrator settings using their revision |
 | `POST /api/password` | Change the current user's password |
 | `POST /api/users/add`, `/edit`, `/delete` | Manage accounts as an administrator |
+
+## RouterOS operation history
+
+Open RouterOS to view the last 30 operations, with their status and creation
+time. Choose Log to read an operation's output. The panel keeps up to 600 lines
+per operation in SQLite, including the cursor offset for trimmed lines. History
+survives sign-out, panel restarts and runtime backup/restore.
+
+After a restart, the panel marks unfinished operations as errors and adds an
+interruption message. Check the result on the router before retrying; the panel
+does not replay imports. Administrators can read the operation history. Other
+accounts can read only their own jobs through the API.

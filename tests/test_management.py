@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 import base64
 import io
 import json
@@ -10,6 +11,7 @@ from unittest.mock import Mock,patch
 
 import test_panel
 from accounts import Accounts
+from controller import Controller
 from secure_store import SecretStore
 from two_factor import totp
 from router_service import RouterService,PinnedKey,cleanup_script,fingerprint
@@ -203,8 +205,8 @@ class SecurityUnitTests(unittest.TestCase):
             def sendall(self,value):self.sent=value
             def resize_pty(self,**values):self.size=values
             def close(self):self.closed=True
-        with tempfile.TemporaryDirectory() as directory:
-            controller=Mock();controller.directory=Path(directory);controller.settings.return_value={'source':'192.168.50.0/24'}
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            controller=Controller(directory);stack.callback(controller.db.close)
             service=RouterService(controller);client=Mock();channel=Channel();client.invoke_shell.return_value=channel;service.connect=lambda:client
             actor={'id':'a','role':'admin'};identifier=service.open_terminal(actor,'session-a')['id']
             for user,session in [({'id':'b'},'session-a'),(actor,'session-b')]:

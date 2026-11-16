@@ -183,6 +183,9 @@ if __name__ == '__main__':
     configure()
     from auth_rate import AuthRate
     controller.auth_rate=AuthRate(controller.directory,controller.lock)
+    from router_service import RouterService
+    controller.router_service=RouterService(controller)
+    controller.router_service.recover_jobs()
     controller.updates=Updates(controller)
     threading.Thread(target=controller.updates.run,daemon=True).start()
     Panel.sessions=session_store.load(controller)

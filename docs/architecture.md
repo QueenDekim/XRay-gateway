@@ -52,3 +52,8 @@ Bearer tokens. The service returns 404 for the former `/api/login`,
 `/api/login/2fa` and `/api/logout` routes. Request quotas and persistent failure
 counters cover password checks, sign-in codes, API credentials and personal
 security operations. See [Authentication limits](configuration.md#authentication-limits-and-reverse-proxies).
+
+RouterOS operation metadata and log lines use separate SQLite tables. Each log
+append commits its sequence and cursor offset with the job metadata. Startup
+marks interrupted jobs as errors without running their commands again. Runtime
+backups include these tables.

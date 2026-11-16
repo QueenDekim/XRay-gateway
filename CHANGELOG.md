@@ -1,6 +1,13 @@
 # Changelog
 
-## 2.0.2
+## 2.1.0
+
+- Keep RouterOS operation history across sign-ins, restarts and runtime backups.
+- Store the last 30 jobs and 600 log lines per job, with stable reading cursors.
+- Show operation dates and mark interrupted jobs as errors without replaying imports.
+- Include the user settings wording updates in the panel Wiki and documentation.
+
+## [2.0.2](https://github.com/QueenDekim/XRay-gateway/tree/2.0.2-1fe435e)
 
 - Clarify user settings navigation in the API reference, panel guide and security documentation.
 - Update the Russian and English Wiki text in the panel.

@@ -2,6 +2,8 @@
 
 Configure SSH and pin the host key fingerprint. The panel stores secrets encrypted. Blank secret fields preserve existing credentials when saving the same connection.
 
+The panel stores the last 30 operations and up to 600 log lines per operation in SQLite. History remains available after signing in again or restarting the panel. Interrupted jobs receive error status; check the result in RouterOS before retrying.
+
 ## GET /api/routeros/config
 
 Role: `admin`.

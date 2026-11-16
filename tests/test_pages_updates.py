@@ -121,3 +121,44 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual(self.updates.settings(),{'auto_install':True,'check_interval_hours':12})
         self.updates.cache['available']=self.candidate();self.updates.current_number=(1,9,0)
         self.assertIsNone(self.updates.snapshot()['available'])
+
+    def test_background_checks_repeat_without_auto_install_or_agent(self):
+        now=time.time();finished=threading.Event();original=self.updates.check
+        def checked(*args,**kwargs):
+            try:return original(*args,**kwargs)
+            finally:finished.set()
+        metadata=([{'name':self.tag,'commit':{'sha':self.revision}}],{})
+        with patch('updates.time.time',return_value=now) as clock,patch('updates.get_json',return_value=metadata) as fetch,patch('updates.registry_digest',side_effect=lambda repo,tag:repo+'@sha256:'+'a'*64),patch.object(self.updates,'check',side_effect=checked),patch.object(self.updates,'install') as install:
+            self.updates.next_check=now
+            self.updates.tick();self.assertTrue(finished.wait(3));finished.clear()
+            self.assertEqual(self.updates.snapshot()['available']['tag'],self.tag)
+            self.assertFalse(self.updates.snapshot()['configured'])
+            self.assertFalse(self.updates.settings()['auto_install'])
+            self.updates.tick();self.assertEqual(fetch.call_count,1)
+            clock.return_value=now+3601
+            self.updates.tick();self.assertTrue(finished.wait(3))
+            self.assertEqual(fetch.call_count,2);install.assert_not_called()
+        self.assertFalse((self.control/'request.json').exists())
+
+    def test_unwritable_control_volume_does_not_prevent_scheduled_checks(self):
+        self.updates.next_check=0
+        with patch.object(self.updates,'heartbeat',side_effect=PermissionError('read only')),patch.object(self.updates,'start_check') as check,patch.object(self.updates,'install') as install:
+            self.updates.tick();check.assert_called_once();install.assert_not_called()
+
+    def test_document_open_schedules_a_check_only_for_stale_metadata(self):
+        now=time.time()
+        self.updates.cache['checked_at']=now-600;self.updates.next_check=now+3600
+        self.assertEqual(self.panel.request('/profiles',headers=self.headers)[0],200)
+        self.assertLessEqual(self.updates.next_check,time.time())
+        self.updates.cache['checked_at']=time.time();self.updates.next_check=now+3600
+        self.assertEqual(self.panel.request('/profiles',headers=self.headers)[0],200)
+        self.assertEqual(self.updates.next_check,now+3600)
+
+    def test_unpublished_images_retry_soon_and_keep_a_known_release(self):
+        self.updates.cache['available']=self.candidate()
+        metadata=([{'name':self.tag,'commit':{'sha':self.revision}}],{})
+        with patch('updates.get_json',return_value=metadata),patch('updates.registry_digest',side_effect=OSError('publishing')):
+            result=self.updates.check()
+        self.assertEqual(result['available']['tag'],self.tag)
+        self.assertTrue(self.updates.cache['pending_publication'])
+        self.assertLessEqual(self.updates.next_check-time.time(),300)

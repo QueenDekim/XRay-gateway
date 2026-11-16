@@ -157,6 +157,12 @@
       "revision": "1fe435e958e637d7bb2fcfb95fc0650882b4813e",
       "tag": "2.0.2-1fe435e",
       "summary": "Clarify user settings navigation in documentation and the panel Wiki."
+    },
+    {
+      "version": "2.1.0",
+      "revision": "e08cf9a5893e5cf8c6272fdd1470f2c28b6041f3",
+      "tag": "2.1.0-e08cf9a",
+      "summary": "Persistent RouterOS operation history and user settings wording updates."
     }
   ]
 }

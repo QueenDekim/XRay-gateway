@@ -54,7 +54,7 @@ Use a restricted management network and terminate HTTPS at a reverse proxy.
 ## Update settings
 
 Administrators configure the check interval and automatic installation in
-Settings → Updates. The default interval is six hours; automatic installation
+Settings → Updates. The default interval is one hour; automatic installation
 starts disabled. The panel saves these choices in SQLite.
 
 Compose sets `UPDATE_CONTROL_DIR=/run/xray-updates` and mounts the shared control

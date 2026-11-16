@@ -2,10 +2,14 @@
 
 ## Check and install
 
-The panel checks release tags on GitHub and image manifests on GHCR every six
-hours. It offers a higher semantic version after both the gateway and updater
+The panel checks release tags on GitHub and image manifests on GHCR after
+startup and every hour by default. Opening an authenticated page also schedules
+a check when its cached result is older than five minutes. It offers a higher semantic version after both the gateway and updater
 images exist and allow anonymous pulls. A tag alone does not trigger an update.
-The panel keeps the last check result if GitHub or GHCR cannot be reached.
+The panel keeps the last known release if GitHub or GHCR cannot be reached.
+It retries within five minutes after a network failure or while release images
+are still being published. Checks run with automatic installation disabled and
+without a connected updater service.
 
 A notification appears above the version link when a release is available.
 Administrators can choose Update there or open Settings → Updates. Confirm the

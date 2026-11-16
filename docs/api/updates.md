@@ -4,6 +4,8 @@ Checks select a newer version with published Gateway and Updater images. Install
 
 Automatic installation is off by default; periodic checks are on. Configure the updater service, which alone receives the Docker socket. Write operations return 503 during installation.
 
+Checks run after startup, hourly by default and on page entry when the result is older than five minutes. Automatic installation is not required. An unavailable updater does not stop release checks; incomplete image publication is checked again within five minutes.
+
 ## GET /api/updates
 
 Role: `user`.

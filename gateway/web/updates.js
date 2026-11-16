@@ -18,7 +18,7 @@
    $('updateJobPanel').hidden=!data.job;
    if(data.job){message('updateJobStatus',names[data.job.status]||data.job.status);$('updateJobLog').textContent=(data.job.logs||[]).map(text=>t(text)).join('\n');}
   }
-  if(busy&&!timer)timer=setTimeout(poll,1500);
+  if((busy||data.checking)&&!timer)timer=setTimeout(poll,1500);
  }
  async function poll(){timer=null;try{render(await api('/api/updates'));}catch{timer=setTimeout(poll,2000);}}
  async function install(){

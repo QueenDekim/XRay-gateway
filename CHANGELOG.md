@@ -1,6 +1,12 @@
 # Changelog
 
-## 2.1.0
+## 2.1.1
+
+- Check releases automatically after startup, hourly by default and on page entry with stale metadata.
+- Keep release checks running when the updater control volume is unavailable.
+- Retry pending image publication within five minutes without starting installation.
+
+## [2.1.0](https://github.com/QueenDekim/XRay-gateway/tree/2.1.0-e08cf9a)
 
 - Keep RouterOS operation history across sign-ins, restarts and runtime backups.
 - Store the last 30 jobs and 600 log lines per job, with stable reading cursors.

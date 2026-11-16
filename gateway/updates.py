@@ -36,10 +36,10 @@ class Updates:
         self.next_check=time.time()+5
 
     def settings(self):
-        with self.controller.lock:return {'check_interval_hours':6,'auto_install':False}|self.controller.load('updates_settings',{})
+        with self.controller.lock:return {'check_interval_hours':1,'auto_install':False}|self.controller.load('updates_settings',{})
 
     def save_settings(self,data):
-        interval=data.get('check_interval_hours',6);automatic=data.get('auto_install',False)
+        interval=data.get('check_interval_hours',1);automatic=data.get('auto_install',False)
         if isinstance(interval,bool) or not isinstance(interval,int) or not 1<=interval<=168 or not isinstance(automatic,bool):
             raise ValueError('Проверьте интервал и режим автоматического обновления.')
         with self.controller.lock:self.controller.save('updates_settings',{'check_interval_hours':interval,'auto_install':automatic})
@@ -100,29 +100,42 @@ class Updates:
             for entry in tags:
                 tag=entry.get('name','');revision=entry.get('commit',{}).get('sha','')
                 if TAG.fullmatch(tag) and re.fullmatch(r'[0-9a-f]{40}',revision) and revision.startswith(tag.rsplit('-',1)[1]):candidates.append((version_tuple(tag),tag,revision))
-            available=None
+            available=None;pending=False
             for number,tag,revision in sorted(candidates,reverse=True):
                 if number<=self.current_number:break
                 try:
                     gateway=registry_digest(GATEWAY_IMAGE,tag);updater=registry_digest(UPDATER_IMAGE,tag)
-                except Exception:continue  # Tags can appear before image publication finishes.
+                except Exception:
+                    pending=True;continue  # Retry soon if publication or the registry is not ready.
                 available={'tag':tag,'version':tag.split('-')[0],'revision':revision,'url':'https://github.com/QueenDekim/XRay-gateway/tree/'+tag,
                     'gateway_image':gateway,'updater_image':updater};break
-            cache={'checked_at':time.time(),'available':available,'error':None}
+            if pending and available is None:
+                with self.lock:available=copy.deepcopy(self.cache.get('available'))
+            cache={'checked_at':time.time(),'available':available,'error':None,'pending_publication':pending}
         except Exception:
             with self.lock:cache=self.cache|{'error':'Не удалось проверить обновления. Повторите позже.'}
         finally:
             with self.lock:self.checking=False
         with self.lock:self.cache=cache;atomic_json(self.path,cache)
-        self.next_check=time.time()+(300 if cache['error'] else self.settings()['check_interval_hours']*3600)
+        interval=self.settings()['check_interval_hours']*3600
+        self.next_check=time.time()+(min(300,interval) if cache['error'] or cache.get('pending_publication') else interval)
         return self.snapshot()
 
     def start_check(self):
         with self.lock:
             busy=self.checking or time.time()-self.last_attempt<60
             if not busy:self.checking=True;self.last_attempt=time.time()
-        if not busy:threading.Thread(target=lambda:self.check(started=True),daemon=True).start()
+        if not busy:
+            try:threading.Thread(target=lambda:self.check(started=True),daemon=True).start()
+            except RuntimeError:
+                with self.lock:self.checking=False
+                self.next_check=time.time()+60
         return self.snapshot()
+
+    def on_page_open(self):
+        with self.lock:
+            if time.time()-(self.cache.get('checked_at') or 0)>=300:
+                self.next_check=min(self.next_check,time.time())
 
     def install(self,tag):
         if not self.snapshot()['configured']:raise ValueError('Служба обновления не подключена.')
@@ -135,13 +148,17 @@ class Updates:
             atomic_json(self.control/'request.json',request)
             return {'id':request['id']}
 
+    def tick(self):
+        # Checking public release metadata must not depend on a writable control volume or an agent.
+        try:self.heartbeat()
+        except OSError:pass
+        if time.time()>=self.next_check:self.start_check()
+        snapshot=self.snapshot();candidate=snapshot['available']
+        if snapshot['settings']['auto_install'] and snapshot['configured'] and candidate and version_tuple(candidate['tag'])[0]==self.current_number[0] and self.last_auto_tag!=candidate['tag']:
+            self.last_auto_tag=candidate['tag'];self.install(candidate['tag'])
+
     def run(self):
         while True:
-            try:
-                self.heartbeat()
-                if time.time()>=self.next_check:self.start_check()
-                snapshot=self.snapshot();candidate=snapshot['available']
-                if snapshot['settings']['auto_install'] and snapshot['configured'] and candidate and version_tuple(candidate['tag'])[0]==self.current_number[0] and self.last_auto_tag!=candidate['tag']:
-                    self.last_auto_tag=candidate['tag'];self.install(candidate['tag'])
+            try:self.tick()
             except Exception:pass
             time.sleep(5)

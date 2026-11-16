@@ -162,6 +162,7 @@ class Panel(http.server.BaseHTTPRequestHandler):
             if not session:self.redirect('/login?next='+quote(path,safe=''));return
             if page in ('routeros','settings') and session['user']['role']!='admin':
                 self.redirect('/account' if page=='settings' else '/overview');return
+            self.updates().on_page_open()
             self.respond(200,web_pages.render(self.assets,page,self.page_state(session),topic),content_type='text/html; charset=utf-8');return
         if path == '/locales.js':
             self.respond(200, b'window.XrayMessages = ' + (self.assets / 'locales.json').read_bytes() + b';\n', content_type='text/javascript; charset=utf-8')

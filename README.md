@@ -76,11 +76,11 @@ The panel also links to the [API reference](docs/api/README.md).
 
 [NetLens](https://github.com/QueenDekim/NetLens) discovers domain addresses and
 captures application connections on Windows. It has its own repository,
-dependencies and releases. The optional `tools` Git submodule pins a NetLens
-revision:
+dependencies and releases. To initialize or update the optional `tools` Git
+submodule from the NetLens `main` branch, run:
 
 ```sh
-git submodule update --init tools
+git submodule update --init --remote tools
 ```
 
 The gateway runs without the submodule. Import a NetLens `ips.txt` export through

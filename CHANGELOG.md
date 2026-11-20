@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Track the NetLens `main` branch for remote submodule updates and update the checkout to 1.1.4.
+
 ## 2.1.1
 
 - Check releases automatically after startup, hourly by default and on page entry with stale metadata.
